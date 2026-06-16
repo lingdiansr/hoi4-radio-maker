@@ -4,6 +4,7 @@ pub mod db;
 pub mod error;
 pub mod generator;
 pub mod models;
+pub mod station;
 
 use std::path::PathBuf;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
