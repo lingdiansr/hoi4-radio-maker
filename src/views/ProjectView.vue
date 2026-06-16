@@ -11,6 +11,7 @@
       <v-tabs v-model="tab">
         <v-tab value="audio">音频库</v-tab>
         <v-tab value="stations">电台编辑</v-tab>
+        <v-tab value="settings">设置</v-tab>
       </v-tabs>
       <v-window v-model="tab">
         <v-window-item value="audio">
@@ -18,6 +19,9 @@
         </v-window-item>
         <v-window-item value="stations">
           <StationEditorView />
+        </v-window-item>
+        <v-window-item value="settings">
+          <SettingsView />
         </v-window-item>
       </v-window>
     </v-main>
@@ -30,6 +34,7 @@ import { useRoute } from 'vue-router'
 import ProjectList from '@/components/ProjectList.vue'
 import AudioLibraryView from '@/views/AudioLibraryView.vue'
 import StationEditorView from '@/views/StationEditorView.vue'
+import SettingsView from '@/views/SettingsView.vue'
 import { useProjectStore } from '@/stores/project'
 import { useCommand } from '@/composables/useCommand'
 

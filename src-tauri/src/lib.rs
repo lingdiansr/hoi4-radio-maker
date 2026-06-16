@@ -5,6 +5,7 @@ pub mod db;
 pub mod error;
 pub mod generator;
 pub mod models;
+pub mod settings;
 pub mod station;
 pub mod validator;
 
@@ -52,6 +53,7 @@ pub fn run() {
     let db = Db::open(&db_path).expect("failed to open database");
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(commands::AppState { db: Mutex::new(db) })
         .invoke_handler(tauri::generate_handler![
@@ -68,6 +70,8 @@ pub fn run() {
             commands::remove_station_entry,
             commands::generate_project_mod,
             commands::validate_project_mod,
+            commands::get_settings,
+            commands::save_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

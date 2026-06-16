@@ -4,6 +4,7 @@ use crate::db::Db;
 use crate::error::{Hoi4RadioError, Result};
 use crate::generator::generate_mod;
 use crate::models::{AudioFile, CreateProjectRequest, Project};
+use crate::settings::Settings;
 use crate::station::StationRepository;
 use crate::validator::validate_mod_output;
 use std::path::PathBuf;
@@ -181,4 +182,16 @@ pub async fn validate_project_mod(
     };
 
     validate_mod_output(&output_dir).await
+}
+
+#[tauri::command]
+pub fn get_settings(state: State<'_, AppState>) -> Result<Settings> {
+    let db = lock_db(&state)?;
+    Settings::get(&db)
+}
+
+#[tauri::command]
+pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<()> {
+    let db = lock_db(&state)?;
+    settings.save(&db)
 }
