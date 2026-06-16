@@ -43,7 +43,15 @@ pub async fn analyze_audio<P: AsRef<Path>>(path: P) -> Result<AudioMetadata> {
             path.to_string_lossy().as_ref(),
         ])
         .output()
-        .await?;
+        .await
+        .map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => Hoi4RadioError::AudioAnalysis {
+                message: "ffprobe not found in PATH. Please install ffmpeg and ensure ffprobe is available.".to_string(),
+            },
+            _ => Hoi4RadioError::Io {
+                message: e.to_string(),
+            },
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -112,7 +120,15 @@ pub async fn transcode_to_ogg<P: AsRef<Path>, Q: AsRef<Path>>(input: P, output: 
             output.to_string_lossy().as_ref(),
         ])
         .output()
-        .await?;
+        .await
+        .map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => Hoi4RadioError::Transcoding {
+                message: "ffmpeg not found in PATH. Please install ffmpeg and ensure ffmpeg is available.".to_string(),
+            },
+            _ => Hoi4RadioError::Io {
+                message: e.to_string(),
+            },
+        })?;
 
     if !result.status.success() {
         let stderr = String::from_utf8_lossy(&result.stderr);
