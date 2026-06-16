@@ -1,5 +1,10 @@
 <template>
-  <v-btn prepend-icon="mdi-music-note-plus" @click="selectFiles">
+  <v-btn
+    color="primary"
+    prepend-icon="mdi-music-note-plus"
+    class="importer-btn"
+    @click="selectFiles"
+  >
     导入音频
   </v-btn>
 </template>
@@ -21,3 +26,10 @@ async function selectFiles() {
   }
 }
 </script>
+
+<style scoped>
+.importer-btn {
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+</style>

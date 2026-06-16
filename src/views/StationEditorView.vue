@@ -1,51 +1,111 @@
 <template>
-  <div class="pa-4">
-    <div class="d-flex align-center mb-4">
-      <h3 class="text-h6 mr-4">电台编辑</h3>
-      <v-btn prepend-icon="mdi-plus" @click="createStation">新建电台</v-btn>
-    </div>
+  <div class="pa-6">
+    <v-card class="station-card" variant="elevated" rounded="xl">
+      <v-card-title class="d-flex justify-space-between align-center pa-6">
+        <div>
+          <div class="text-mono text-caption text-secondary mb-1">BROADCAST CHANNELS</div>
+          <div class="text-display text-h5">电台编辑</div>
+        </div>
+        <v-btn
+          color="primary"
+          prepend-icon="mdi-plus"
+          class="create-btn"
+          @click="createStation"
+        >
+          新建电台
+        </v-btn>
+      </v-card-title>
 
-    <v-alert v-if="stationStore.stations.length === 0" type="info" text="暂无电台，请先创建一个电台。" />
+      <v-divider opacity="0.2" />
 
-    <v-tabs v-else v-model="activeTab">
-      <v-tab v-for="station in stationStore.stations" :key="station.id" :value="station.id">
-        {{ station.name }}
-      </v-tab>
-    </v-tabs>
+      <v-card-text class="pa-6">
+        <div v-if="stationStore.stations.length === 0" class="empty-state text-center py-12">
+          <v-icon size="64" color="secondary" class="mb-4">mdi-antenna</v-icon>
+          <div class="text-body text-secondary text-h6 mb-2">暂无电台</div>
+          <div class="text-body text-secondary mb-4">创建一个电台，然后从音频库添加歌曲</div>
+          <v-btn color="primary" prepend-icon="mdi-plus" @click="createStation">新建电台</v-btn>
+        </div>
 
-    <v-window v-if="stationStore.stations.length > 0" v-model="activeTab">
-      <v-window-item v-for="station in stationStore.stations" :key="station.id" :value="station.id">
-        <v-card class="mt-4">
-          <v-card-title>歌曲列表</v-card-title>
-          <v-card-text>
-            <v-list>
-              <v-list-item
-                v-for="entry in station.entries"
-                :key="entry.audio_file_id"
-                :title="entry.audio_file_id"
-                :subtitle="`factor: ${entry.chance.factor}`"
-              >
-                <template #append>
-                  <v-btn icon="mdi-delete" variant="text" color="error" @click="removeEntry(station.id, entry.audio_file_id)" />
-                </template>
-              </v-list-item>
-            </v-list>
-            <v-divider class="my-4" />
-            <div class="d-flex align-center">
-              <v-select
-                v-model="selectedAudio"
-                label="选择音频"
-                :items="audioStore.audioFiles"
-                item-title="title"
-                item-value="id"
-                class="mr-4"
-              />
-              <v-btn color="primary" @click="addEntry(station.id)">添加</v-btn>
-            </div>
-          </v-card-text>
-        </v-card>
-      </v-window-item>
-    </v-window>
+        <template v-else>
+          <v-tabs v-model="activeTab" class="station-tabs" bg-color="transparent">
+            <v-tab
+              v-for="station in stationStore.stations"
+              :key="station.id"
+              :value="station.id"
+              prepend-icon="mdi-radio"
+            >
+              {{ station.name }}
+            </v-tab>
+          </v-tabs>
+
+          <v-window v-model="activeTab" class="mt-4">
+            <v-window-item
+              v-for="station in stationStore.stations"
+              :key="station.id"
+              :value="station.id"
+            >
+              <v-card class="entry-card" variant="flat" rounded="lg">
+                <v-card-title class="d-flex justify-space-between align-center">
+                  <span class="text-display text-h6">歌曲列表</span>
+                  <v-chip size="small" color="primary" class="text-mono">
+                    {{ station.entries.length }} tracks
+                  </v-chip>
+                </v-card-title>
+                <v-card-text>
+                  <v-list v-if="station.entries.length > 0" bg-color="transparent">
+                    <v-list-item
+                      v-for="entry in station.entries"
+                      :key="entry.audio_file_id"
+                      class="entry-item mb-2"
+                      rounded="lg"
+                    >
+                      <template #prepend>
+                        <v-icon color="primary" class="mr-4">mdi-music-note</v-icon>
+                      </template>
+                      <v-list-item-title>{{ entry.audio_file_id }}</v-list-item-title>
+                      <v-list-item-subtitle>factor: {{ entry.chance.factor }}</v-list-item-subtitle>
+                      <template #append>
+                        <v-btn
+                          icon="mdi-delete-outline"
+                          variant="text"
+                          color="error"
+                          @click="removeEntry(station.id, entry.audio_file_id)"
+                        />
+                      </template>
+                    </v-list-item>
+                  </v-list>
+                  <v-alert v-else type="info" variant="tonal" text="该电台暂无歌曲" />
+
+                  <v-divider class="my-4" opacity="0.2" />
+
+                  <div class="d-flex align-end gap-3 add-entry-row">
+                    <v-select
+                      v-model="selectedAudio"
+                      label="选择音频"
+                      :items="audioStore.audioFiles"
+                      item-title="title"
+                      item-value="id"
+                      class="flex-grow-1"
+                      hide-details
+                    />
+                    <v-text-field
+                      v-model="factor"
+                      label="Factor"
+                      type="number"
+                      class="factor-field"
+                      hide-details
+                    />
+                    <v-btn color="primary" prepend-icon="mdi-plus" @click="addEntry(station.id)">
+                      添加
+                    </v-btn>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-window-item>
+          </v-window>
+        </template>
+      </v-card-text>
+    </v-card>
   </div>
 </template>
 
@@ -58,6 +118,7 @@ const stationStore = useStationStore()
 const audioStore = useAudioStore()
 const activeTab = ref<string>('')
 const selectedAudio = ref<string>('')
+const factor = ref<number>(1)
 
 onMounted(() => {
   stationStore.loadStations()
@@ -81,7 +142,7 @@ async function createStation() {
 
 async function addEntry(stationId: string) {
   if (!selectedAudio.value) return
-  await stationStore.addEntry(stationId, selectedAudio.value, { factor: 1 })
+  await stationStore.addEntry(stationId, selectedAudio.value, { factor: factor.value })
   selectedAudio.value = ''
 }
 
@@ -89,3 +150,47 @@ async function removeEntry(stationId: string, audioFileId: string) {
   await stationStore.removeEntry(stationId, audioFileId)
 }
 </script>
+
+<style scoped>
+.station-card {
+  background: rgba(26, 23, 20, 0.7);
+  border: 1px solid rgba(74, 66, 56, 0.4);
+}
+
+.create-btn {
+  text-transform: none;
+}
+
+.station-tabs :deep(.v-tab) {
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+.entry-card {
+  background: rgba(37, 33, 28, 0.5);
+  border: 1px solid rgba(74, 66, 56, 0.3);
+}
+
+.entry-item {
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.entry-item:hover {
+  background: rgba(255, 176, 32, 0.06) !important;
+  border-color: rgba(255, 176, 32, 0.2);
+}
+
+.add-entry-row {
+  gap: 12px;
+}
+
+.factor-field {
+  max-width: 120px;
+}
+
+.empty-state {
+  border: 2px dashed rgba(74, 66, 56, 0.6);
+  border-radius: 16px;
+}
+</style>
