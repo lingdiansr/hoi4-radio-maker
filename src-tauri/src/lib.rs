@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod audio_repo;
+pub mod commands;
 pub mod db;
 pub mod error;
 pub mod generator;
@@ -7,7 +8,9 @@ pub mod models;
 pub mod station;
 pub mod validator;
 
+use crate::db::Db;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 /// Initialize logging to both stdout and a rolling log file.
@@ -41,8 +44,31 @@ pub fn init_logging() {
 pub fn run() {
     init_logging();
 
+    let app_dir = dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("hoi4-radio-maker");
+    std::fs::create_dir_all(&app_dir).ok();
+    let db_path = app_dir.join("app.db");
+    let db = Db::open(&db_path).expect("failed to open database");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .manage(commands::AppState { db: Mutex::new(db) })
+        .invoke_handler(tauri::generate_handler![
+            commands::create_project,
+            commands::list_projects,
+            commands::get_project,
+            commands::delete_project,
+            commands::list_audio_files,
+            commands::delete_audio_file,
+            commands::import_audio,
+            commands::list_stations,
+            commands::create_station,
+            commands::add_station_entry,
+            commands::remove_station_entry,
+            commands::generate_project_mod,
+            commands::validate_project_mod,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
