@@ -37,6 +37,13 @@ bun run tauri android build
 - `src-tauri/icons/` — Application icons
 - `public/` — Static assets served by Vite
 
+## Error Handling & Logging
+
+- Rust errors are centralized in `src-tauri/src/error.rs` as `Hoi4RadioError`.
+- All Tauri commands return `Result<T, Hoi4RadioError>` so structured errors reach the frontend.
+- Use `tracing::info!` / `warn!` / `error!` for logging; logs go to stdout and to `<data_dir>/hoi4-radio-maker/logs/hoi4-radio-maker.log`.
+- Override log level with the `RUST_LOG` environment variable, e.g. `RUST_LOG=debug bun run tauri dev`.
+
 ## Build & Lint Notes
 
 - TypeScript type checking is run as part of the build: `vue-tsc --noEmit && vite build`.

@@ -149,8 +149,16 @@ git commit -m "docs: update setup instructions for Bun"
 
 - 遵循 `cargo fmt` 默认格式
 - 使用 `cargo clippy` 检查常见代码问题
-- 错误处理统一使用自定义 `Hoi4RadioError`
+- 错误处理统一使用自定义 `Hoi4RadioError`，Tauri Command 返回 `Result<T, Hoi4RadioError>`
+- 使用 `tracing::info!` / `warn!` / `error!` 记录日志，避免直接使用 `println!`
 - 路径处理使用 `std::path::PathBuf`
+
+### 错误与日志规范
+
+- **后端**：所有错误通过 `src-tauri/src/error.rs` 中的 `Hoi4RadioError` 统一表达
+- **后端**：日志写入 `stdout`（开发期）和 `<data_dir>/hoi4-radio-maker/logs/hoi4-radio-maker.log`（滚动日志）
+- **前端**：调用 Tauri Command 时统一处理错误，使用 Naive UI 的 `useMessage` 或全局错误处理显示提示
+- **环境变量**：`RUST_LOG` 控制 Rust 日志级别，如 `RUST_LOG=debug bun run tauri dev`
 
 ## 添加依赖
 
