@@ -1,3 +1,5 @@
+pub mod audio;
+pub mod audio_repo;
 pub mod db;
 pub mod error;
 pub mod generator;

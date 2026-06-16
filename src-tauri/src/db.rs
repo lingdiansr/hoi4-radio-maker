@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use crate::error::{Hoi4RadioError, Result};
-use crate::models::{CreateProjectRequest, Project};
+use crate::models::{AudioFile, CreateProjectRequest, Project};
 
 /// Wraps a SQLite connection and provides typed access to application data.
 pub struct Db {
@@ -161,6 +161,91 @@ impl Db {
             .execute("DELETE FROM projects WHERE id = ?1", params![id])?;
         Ok(())
     }
+
+    /// Insert a new audio file into a project and return the created record.
+    pub fn create_audio_file(&self, project_id: &str, audio: &AudioFile) -> Result<AudioFile> {
+        self.conn.execute(
+            "INSERT INTO audio_files (
+                id, project_id, title, artist, source_path, ogg_filename,
+                duration_secs, sample_rate, channels, volume, tags, notes
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            params![
+                &audio.id,
+                project_id,
+                &audio.title,
+                audio.artist.as_deref(),
+                audio.source_path.to_string_lossy(),
+                &audio.ogg_filename,
+                audio.duration_secs,
+                audio.sample_rate,
+                audio.channels,
+                audio.volume,
+                serde_json::to_string(&audio.tags)?,
+                audio.notes.as_deref(),
+            ],
+        )?;
+
+        Ok(audio.clone())
+    }
+
+    /// List all audio files belonging to a project.
+    pub fn list_audio_files(&self, project_id: &str) -> Result<Vec<AudioFile>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, project_id, title, artist, source_path, ogg_filename,
+                    duration_secs, sample_rate, channels, volume, tags, notes
+             FROM audio_files
+             WHERE project_id = ?1
+             ORDER BY title",
+        )?;
+
+        let mut rows = stmt.query(params![project_id])?;
+        let mut files = Vec::new();
+        while let Some(row) = rows.next()? {
+            files.push(audio_file_from_row(row)?);
+        }
+        Ok(files)
+    }
+
+    /// Fetch a single audio file by ID, if it exists.
+    pub fn get_audio_file(&self, id: &str) -> Result<Option<AudioFile>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, project_id, title, artist, source_path, ogg_filename,
+                    duration_secs, sample_rate, channels, volume, tags, notes
+             FROM audio_files
+             WHERE id = ?1",
+        )?;
+
+        let mut rows = stmt.query(params![id])?;
+        match rows.next()? {
+            Some(row) => Ok(Some(audio_file_from_row(row)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Delete an audio file by ID.
+    pub fn delete_audio_file(&self, id: &str) -> Result<()> {
+        self.conn
+            .execute("DELETE FROM audio_files WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+}
+
+fn audio_file_from_row(row: &rusqlite::Row) -> Result<AudioFile> {
+    let tags_json: String = row.get("tags")?;
+
+    Ok(AudioFile {
+        id: row.get("id")?,
+        title: row.get("title")?,
+        artist: row.get("artist")?,
+        source_path: PathBuf::from(row.get::<_, String>("source_path")?),
+        ogg_filename: row.get("ogg_filename")?,
+        duration_secs: row.get("duration_secs")?,
+        sample_rate: row.get("sample_rate")?,
+        channels: row.get("channels")?,
+        volume: row.get("volume")?,
+        tags: serde_json::from_str(&tags_json)?,
+        notes: row.get("notes")?,
+    })
 }
 
 fn project_from_row(row: &rusqlite::Row) -> Result<Project> {
