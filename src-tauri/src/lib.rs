@@ -1,4 +1,6 @@
+pub mod db;
 pub mod error;
+pub mod generator;
 pub mod models;
 
 use std::path::PathBuf;
