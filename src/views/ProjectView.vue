@@ -8,9 +8,11 @@
         <div class="d-flex justify-space-between align-start">
           <div>
             <div class="text-mono text-caption text-secondary mb-1">PROJECT</div>
-            <h1 class="text-display text-h3 mb-2">{{ projectStore.currentProject?.name }}</h1>
-            <div class="text-mono text-secondary">
-              {{ projectStore.currentProject?.version }} · {{ projectStore.currentProject?.supported_version }}
+            <h1 class="text-display text-h3 mb-2">
+              {{ projectStore.currentProject?.name || '未选择项目' }}
+            </h1>
+            <div v-if="projectStore.currentProject" class="text-mono text-secondary">
+              {{ projectStore.currentProject.version }} · {{ projectStore.currentProject.supported_version }}
             </div>
           </div>
           <div class="d-flex gap-3">

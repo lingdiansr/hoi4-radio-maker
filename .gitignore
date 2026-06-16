@@ -25,3 +25,9 @@ dist-ssr
 
 # Local reference materials (not committed)
 references/
+
+# Playwright test artifacts
+.playwright-mcp/
+welcome-page*.png
+create-project-dialog*.png
+project-view*.png

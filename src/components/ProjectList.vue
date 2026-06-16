@@ -7,10 +7,9 @@
 
     <v-btn
       color="primary"
-      block
-      size="large"
       prepend-icon="mdi-plus-circle"
-      class="create-btn mb-6"
+      class="create-btn mb-6 w-100"
+      height="44"
       @click="showDialog = true"
     >
       新建项目
