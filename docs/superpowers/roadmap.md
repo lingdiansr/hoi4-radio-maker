@@ -124,7 +124,7 @@ Task 8 + Task 9 (+ Task 9.5) → Task 10 → Task 11
    - 命令层会同时调用 `db.rs`、`audio_repo.rs`、`station.rs`、`generator.rs`、`validator.rs`，建议由熟悉整体结构的人统一实现。
 
 5. **前端 Task 8 / 9 / 9.5 可并行，但需统一 UI 规范**
-   - 建议先由 Task 8 确立 Naive UI 主题、布局、组件使用方式，再并行开发 Task 9 和 Task 9.5。
+   - 建议先由 Task 8 确立 Vuetify 3 (Material Design 3) 主题、布局、组件使用方式，再并行开发 Task 9 和 Task 9.5。
 
 ## 七、最小可行路径（MVP Fast Track）
 

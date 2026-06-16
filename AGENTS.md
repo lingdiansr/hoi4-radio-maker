@@ -6,7 +6,7 @@
 
 - **Identifier**: `xyz.ldsr.hoi4-radio-maker`
 - **Package Manager**: [Bun](https://bun.sh/)
-- **Frontend**: Vue 3 + TypeScript + Vite (`src/`)
+- **Frontend**: Vue 3 + TypeScript + Vite + Vuetify 3 (Material Design 3) (`src/`)
 - **Backend**: Rust via Tauri 2 (`src-tauri/`)
 
 ## Common Commands

@@ -27,7 +27,7 @@
 | 前端框架 | Vue 3 + TypeScript | `<script setup>` SFC |
 | 前端构建 | Vite | 热更新与打包 |
 | 包管理器 | Bun | 项目初始化时指定 |
-| UI 组件库 | Naive UI | 适合桌面端，Vue 3 生态成熟 |
+| UI 组件库 | Vuetify 3 (Material Design 3) | 适合桌面端，Material You 设计，Vue 3 生态成熟 |
 | 状态管理 | Pinia | Vue 3 官方推荐 |
 | 路由 | Vue Router | 多视图切换 |
 | 后端语言 | Rust | 与 hoi4skill 保持一致，性能与类型安全 |

@@ -157,7 +157,7 @@ git commit -m "docs: update setup instructions for Bun"
 
 - **后端**：所有错误通过 `src-tauri/src/error.rs` 中的 `Hoi4RadioError` 统一表达
 - **后端**：日志写入 `stdout`（开发期）和 `<data_dir>/hoi4-radio-maker/logs/hoi4-radio-maker.log`（滚动日志）
-- **前端**：调用 Tauri Command 时统一处理错误，使用 Naive UI 的 `useMessage` 或全局错误处理显示提示
+- **前端**：调用 Tauri Command 时统一处理错误，使用 Vuetify 的 `v-snackbar` 配合全局 toast store 或全局错误处理显示提示
 - **环境变量**：`RUST_LOG` 控制 Rust 日志级别，如 `RUST_LOG=debug bun run tauri dev`
 
 ## 添加依赖

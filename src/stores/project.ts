@@ -1,0 +1,58 @@
+import { defineStore } from "pinia";
+import { ref } from "vue";
+import { invokeCommand } from "@/api/client";
+
+export interface Project {
+  id: string;
+  name: string;
+  version: string;
+  supported_version: string;
+  tags: string[];
+  author?: string;
+  output_dir: string;
+}
+
+export interface CreateProjectRequest {
+  name: string;
+  version: string;
+  supported_version: string;
+  tags: string[];
+  author?: string;
+  output_dir: string;
+}
+
+export const useProjectStore = defineStore("project", () => {
+  const projects = ref<Project[]>([]);
+  const currentProject = ref<Project | null>(null);
+
+  async function loadProjects() {
+    projects.value = await invokeCommand<Project[]>("list_projects");
+  }
+
+  async function createProject(req: CreateProjectRequest) {
+    const p = await invokeCommand<Project>("create_project", { req });
+    projects.value.unshift(p);
+    return p;
+  }
+
+  async function deleteProject(id: string) {
+    await invokeCommand("delete_project", { id });
+    projects.value = projects.value.filter((p) => p.id !== id);
+    if (currentProject.value?.id === id) {
+      currentProject.value = null;
+    }
+  }
+
+  function setCurrentProject(p: Project | null) {
+    currentProject.value = p;
+  }
+
+  return {
+    projects,
+    currentProject,
+    loadProjects,
+    createProject,
+    deleteProject,
+    setCurrentProject,
+  };
+});

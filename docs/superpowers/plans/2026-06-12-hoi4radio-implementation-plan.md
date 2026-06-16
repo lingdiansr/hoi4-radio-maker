@@ -6,7 +6,7 @@
 
 **Architecture:** Rust backend owns all domain logic (project persistence via SQLite, audio analysis/transcoding via ffmpeg/ffprobe, HOI4 file generation, validation); Vue 3 frontend provides the GUI and communicates through Tauri commands. The project follows a modular Rust layout matching hoi4skill-cli's style.
 
-**Tech Stack:** Tauri 2, Vue 3 + TypeScript, Vite, Bun, Rust. Planned additions: Naive UI, Pinia, Vue Router, rusqlite, serde, tempfile, tokio::process for ffmpeg.
+**Tech Stack:** Tauri 2, Vue 3 + TypeScript, Vite, Bun, Rust. Planned additions: Vuetify 3 (Material Design 3), Pinia, Vue Router, rusqlite, serde, tempfile, tokio::process for ffmpeg.
 
 ---
 
@@ -1905,15 +1905,15 @@ export const useProjectStore = defineStore('project', () => {
 
 ```vue
 <template>
-  <n-layout has-sider style="height: 100vh">
-    <n-layout-sider bordered width="280">
+  <v-layout style="height: 100vh">
+    <v-navigation-drawer permanent width="280">
       <ProjectList />
-    </n-layout-sider>
-    <n-layout-content style="padding: 24px">
-      <h1>HOI4 Radio Maker</h1>
-      <p>选择一个项目或创建新项目开始。</p>
-    </n-layout-content>
-  </n-layout>
+    </v-navigation-drawer>
+    <v-main style="padding: 24px">
+      <h1 class="text-h4 mb-4">HOI4 Radio Maker</h1>
+      <p class="text-body-1">选择一个项目或创建新项目开始。</p>
+    </v-main>
+  </v-layout>
 </template>
 
 <script setup lang="ts">
@@ -1927,41 +1927,48 @@ import ProjectList from '../components/ProjectList.vue'
 
 ```vue
 <template>
-  <div style="padding: 16px">
-    <n-button type="primary" block @click="showModal = true">新建项目</n-button>
-    <n-divider />
-    <n-list hoverable clickable>
-      <n-list-item v-for="p in projectStore.projects" :key="p.id" @click="selectProject(p)">
-        <n-thing :title="p.name" :description="p.version" />
-      </n-list-item>
-    </n-list>
+  <div class="pa-4">
+    <v-btn color="primary" block @click="showDialog = true">
+      新建项目
+    </v-btn>
+    <v-divider class="my-4" />
+    <v-list>
+      <v-list-item
+        v-for="p in projectStore.projects"
+        :key="p.id"
+        :title="p.name"
+        :subtitle="p.version"
+        @click="selectProject(p)"
+      />
+    </v-list>
 
-    <n-modal v-model:show="showModal" title="新建项目" preset="card" style="width: 500px">
-      <n-form>
-        <n-form-item label="名称">
-          <n-input v-model:value="form.name" />
-        </n-form-item>
-        <n-form-item label="版本">
-          <n-input v-model:value="form.version" />
-        </n-form-item>
-        <n-form-item label="支持的游戏版本">
-          <n-input v-model:value="form.supported_version" />
-        </n-form-item>
-        <n-form-item label="输出目录">
-          <n-input v-model:value="form.output_dir" />
-        </n-form-item>
-        <n-button type="primary" block @click="handleCreate">创建</n-button>
-      </n-form>
-    </n-modal>
+    <v-dialog v-model="showDialog" max-width="500">
+      <v-card>
+        <v-card-title>新建项目</v-card-title>
+        <v-card-text>
+          <v-text-field v-model="form.name" label="名称" />
+          <v-text-field v-model="form.version" label="版本" />
+          <v-text-field v-model="form.supported_version" label="支持的游戏版本" />
+          <v-text-field v-model="form.output_dir" label="输出目录" />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn text @click="showDialog = false">取消</v-btn>
+          <v-btn color="primary" @click="handleCreate">创建</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
-import { useProjectStore } from '../stores/project'
+import { useRouter } from 'vue-router'
+import { useProjectStore, type Project } from '../stores/project'
 
 const projectStore = useProjectStore()
-const showModal = ref(false)
+const router = useRouter()
+const showDialog = ref(false)
 const form = reactive({
   name: 'My Radio Mod',
   version: '0.1.0',
@@ -1974,16 +1981,20 @@ onMounted(() => {
 })
 
 async function handleCreate() {
-  await projectStore.createProject({
+  const p = await projectStore.createProject({
     ...form,
     tags: ['Sound'],
     author: undefined,
   })
-  showModal.value = false
+  if (p) {
+    showDialog.value = false
+    router.push({ name: 'project', params: { id: p.id } })
+  }
 }
 
-function selectProject(p: any) {
+function selectProject(p: Project) {
   projectStore.setCurrentProject(p)
+  router.push({ name: 'project', params: { id: p.id } })
 }
 </script>
 ```
@@ -1994,34 +2005,40 @@ function selectProject(p: any) {
 
 ```vue
 <template>
-  <n-layout has-sider style="height: 100vh">
-    <n-layout-sider bordered width="280">
+  <v-layout style="height: 100vh">
+    <v-navigation-drawer permanent width="280">
       <ProjectList />
-    </n-layout-sider>
-    <n-layout-content style="padding: 24px">
-      <n-space justify="space-between" align="center">
-        <h2>{{ projectStore.currentProject?.name }}</h2>
-        <n-button type="primary" @click="generate">生成 Mod</n-button>
-      </n-space>
-      <n-tabs type="line">
-        <n-tab-pane name="audio" tab="音频库">
+    </v-navigation-drawer>
+    <v-main style="padding: 24px">
+      <div class="d-flex justify-space-between align-center mb-4">
+        <h2 class="text-h5">{{ projectStore.currentProject?.name }}</h2>
+        <v-btn color="primary" @click="generate">生成 Mod</v-btn>
+      </div>
+      <v-tabs v-model="tab">
+        <v-tab value="audio">音频库</v-tab>
+        <v-tab value="stations">电台编辑</v-tab>
+      </v-tabs>
+      <v-window v-model="tab">
+        <v-window-item value="audio">
           <AudioLibraryView />
-        </n-tab-pane>
-        <n-tab-pane name="stations" tab="电台编辑">
+        </v-window-item>
+        <v-window-item value="stations">
           <StationEditorView />
-        </n-tab-pane>
-      </n-tabs>
-    </n-layout-content>
-  </n-layout>
+        </v-window-item>
+      </v-window>
+    </v-main>
+  </v-layout>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import ProjectList from '../components/ProjectList.vue'
 import AudioLibraryView from './AudioLibraryView.vue'
 import StationEditorView from './StationEditorView.vue'
 import { useProjectStore } from '../stores/project'
 import { invoke } from '@tauri-apps/api/core'
 
+const tab = ref('audio')
 const projectStore = useProjectStore()
 
 async function generate() {
@@ -2054,11 +2071,50 @@ const router = createRouter({
 export default router
 ```
 
-- [ ] **Step 6: Install Naive UI and update main.ts**
+- [ ] **Step 6: Install Vuetify and update main.ts**
 
 ```bash
 cd /home/ldsr/code/Rust/hoi4-radio-maker
-bun add naive-ui
+bun add vuetify@^3.8.0
+```
+
+`src/plugins/vuetify.ts`:
+
+```typescript
+import { createVuetify } from 'vuetify'
+import * as components from 'vuetify/components'
+import * as directives from 'vuetify/directives'
+import 'vuetify/styles'
+
+const vuetify = createVuetify({
+  components,
+  directives,
+  theme: {
+    defaultTheme: 'dark',
+    themes: {
+      dark: {
+        colors: {
+          primary: '#D0BCFF',
+          secondary: '#CCC2DC',
+          surface: '#1C1B1F',
+          background: '#121212',
+          error: '#F2B8B5',
+        },
+      },
+      light: {
+        colors: {
+          primary: '#6750A4',
+          secondary: '#625B71',
+          surface: '#FFFBFE',
+          background: '#FFFFFF',
+          error: '#B3261E',
+        },
+      },
+    },
+  },
+})
+
+export default vuetify
 ```
 
 `src/main.ts`:
@@ -2066,14 +2122,14 @@ bun add naive-ui
 ```typescript
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import naive from 'naive-ui'
+import vuetify from './plugins/vuetify'
 import App from './App.vue'
 import router from './router'
 
 const app = createApp(App)
 app.use(createPinia())
 app.use(router)
-app.use(naive)
+app.use(vuetify)
 app.mount('#app')
 ```
 
@@ -2135,7 +2191,9 @@ git commit -m "feat: add Vue project management UI"
 
 ```vue
 <template>
-  <n-button @click="selectFiles">导入音频</n-button>
+  <v-btn prepend-icon="mdi-music-note-plus" @click="selectFiles">
+    导入音频
+  </v-btn>
 </template>
 
 <script setup lang="ts">
@@ -2163,23 +2221,23 @@ async function selectFiles() {
 
 ```vue
 <template>
-  <div>
-    <n-space>
-      <h3>音频库</h3>
+  <div class="pa-4">
+    <div class="d-flex align-center mb-4">
+      <h3 class="text-h6 mr-4">音频库</h3>
       <AudioImporter @import="onImport" />
-    </n-space>
-    <n-list>
-      <n-list-item v-for="audio in audioFiles" :key="audio.id">
-        <n-thing :title="audio.title" :description="audio.artist || '未知艺术家'">
-          <template #description>
-            {{ audio.duration_secs }}s · {{ audio.sample_rate }}Hz · {{ audio.channels }}ch
-          </template>
-          <template #action>
-            <n-button text type="error" @click="deleteAudio(audio.id)">删除</n-button>
-          </template>
-        </n-thing>
-      </n-list-item>
-    </n-list>
+    </div>
+    <v-list>
+      <v-list-item
+        v-for="audio in audioFiles"
+        :key="audio.id"
+        :title="audio.title"
+        :subtitle="`${audio.artist || '未知艺术家'} · ${audio.duration_secs}s · ${audio.sample_rate}Hz · ${audio.channels}ch`"
+      >
+        <template #append>
+          <v-btn icon="mdi-delete" variant="text" color="error" @click="deleteAudio(audio.id)" />
+        </template>
+      </v-list-item>
+    </v-list>
   </div>
 </template>
 
@@ -2231,20 +2289,28 @@ async function deleteAudio(id: string) {
 
 ```vue
 <template>
-  <div>
-    <n-space>
-      <h3>电台编辑</h3>
-      <n-button @click="createStation">新建电台</n-button>
-    </n-space>
-    <n-tabs type="card">
-      <n-tab-pane v-for="station in stations" :key="station.id" :name="station.id" :tab="station.name">
-        <n-list>
-          <n-list-item v-for="entry in station.entries" :key="entry.audio_file_id">
-            {{ entry.audio_file_id }} — factor: {{ entry.chance.factor }}
-          </n-list-item>
-        </n-list>
-      </n-tab-pane>
-    </n-tabs>
+  <div class="pa-4">
+    <div class="d-flex align-center mb-4">
+      <h3 class="text-h6 mr-4">电台编辑</h3>
+      <v-btn prepend-icon="mdi-plus" @click="createStation">新建电台</v-btn>
+    </div>
+    <v-tabs v-model="activeTab">
+      <v-tab v-for="station in stations" :key="station.id" :value="station.id">
+        {{ station.name }}
+      </v-tab>
+    </v-tabs>
+    <v-window v-model="activeTab">
+      <v-window-item v-for="station in stations" :key="station.id" :value="station.id">
+        <v-list>
+          <v-list-item
+            v-for="entry in station.entries"
+            :key="entry.audio_file_id"
+            :title="entry.audio_file_id"
+            :subtitle="`factor: ${entry.chance.factor}`"
+          />
+        </v-list>
+      </v-window-item>
+    </v-window>
   </div>
 </template>
 
@@ -2261,10 +2327,14 @@ interface Station {
 
 const projectStore = useProjectStore()
 const stations = ref<Station[]>([])
+const activeTab = ref<string>('')
 
 onMounted(async () => {
   if (projectStore.currentProject) {
     stations.value = await invoke<Station[]>('list_stations', { projectId: projectStore.currentProject.id })
+    if (stations.value.length > 0) {
+      activeTab.value = stations.value[0].id
+    }
   }
 })
 
@@ -2390,24 +2460,20 @@ commands::save_settings,
 
 ```vue
 <template>
-  <n-layout style="padding: 24px">
-    <h2>设置</h2>
-    <n-form label-width="160px">
-      <n-form-item label="ffmpeg 路径">
-        <n-input v-model:value="settings.ffmpeg_path" placeholder="ffmpeg" />
-      </n-form-item>
-      <n-form-item label="ffprobe 路径">
-        <n-input v-model:value="settings.ffprobe_path" placeholder="ffprobe" />
-      </n-form-item>
-      <n-form-item label="HOI4 游戏目录">
-        <n-input v-model:value="settings.hoi4_game_dir" placeholder="..." />
-      </n-form-item>
-      <n-form-item label="主题">
-        <n-select v-model:value="settings.theme" :options="themeOptions" />
-      </n-form-item>
-      <n-button type="primary" @click="save">保存</n-button>
-    </n-form>
-  </n-layout>
+  <v-container>
+    <h2 class="text-h5 mb-4">设置</h2>
+    <v-text-field v-model="settings.ffmpeg_path" label="ffmpeg 路径" placeholder="ffmpeg" />
+    <v-text-field v-model="settings.ffprobe_path" label="ffprobe 路径" placeholder="ffprobe" />
+    <v-text-field v-model="settings.hoi4_game_dir" label="HOI4 游戏目录" placeholder="..." />
+    <v-select
+      v-model="settings.theme"
+      label="主题"
+      :items="themeOptions"
+      item-title="label"
+      item-value="value"
+    />
+    <v-btn color="primary" @click="save">保存</v-btn>
+  </v-container>
 </template>
 
 <script setup lang="ts">
