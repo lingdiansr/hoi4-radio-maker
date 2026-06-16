@@ -5,6 +5,7 @@ pub mod error;
 pub mod generator;
 pub mod models;
 pub mod station;
+pub mod validator;
 
 use std::path::PathBuf;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
