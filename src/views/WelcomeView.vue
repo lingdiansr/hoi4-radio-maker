@@ -1,49 +1,38 @@
 <template>
-  <v-layout style="min-height: 100vh">
-    <v-navigation-drawer permanent width="300" class="bureau-sider">
-      <ProjectList />
-    </v-navigation-drawer>
-    <v-main class="d-flex align-center justify-center bureau-hero">
-      <div class="hero-content text-center pa-8">
-        <div class="hero-badge mb-6">
-          <span class="text-mono text-caption">BROADCAST BUREAU</span>
-        </div>
-        <h1 class="text-display hero-title mb-4">HOI4 Radio Maker</h1>
-        <p class="text-body hero-subtitle mb-8">
-          为你的钢铁雄心 IV 战役谱写声音。
-          <br />
-          创建项目、导入音频、编辑电台、一键生成 Mod。
-        </p>
-        <v-btn
-          color="primary"
-          size="large"
-          prepend-icon="mdi-radio-tower"
-          class="hero-cta"
-          @click="emitCreate"
-        >
-          新建广播项目
-        </v-btn>
+  <v-main class="d-flex align-center justify-center bureau-hero">
+    <div class="hero-content text-center pa-8">
+      <div class="hero-badge mb-6">
+        <span class="text-mono text-caption">BROADCAST BUREAU</span>
       </div>
-    </v-main>
-  </v-layout>
+      <h1 class="text-display hero-title mb-4">HOI4 Radio Maker</h1>
+      <p class="text-body hero-subtitle mb-8">
+        为你的钢铁雄心 IV 战役谱写声音。
+        <br />
+        创建项目、导入音频、编辑电台、一键生成 Mod。
+      </p>
+      <v-btn
+        color="primary"
+        size="large"
+        prepend-icon="mdi-radio-tower"
+        class="hero-cta"
+        @click="emitCreate"
+      >
+        新建广播项目
+      </v-btn>
+    </div>
+  </v-main>
 </template>
 
 <script setup lang="ts">
-import ProjectList from '@/components/ProjectList.vue'
-
 function emitCreate() {
   window.dispatchEvent(new CustomEvent('bureau:create-project'))
 }
 </script>
 
 <style scoped>
-.bureau-sider {
-  background: rgba(26, 23, 20, 0.85) !important;
-  backdrop-filter: blur(8px);
-}
-
 .bureau-hero {
   position: relative;
+  min-height: 100vh;
 }
 
 .bureau-hero::before {

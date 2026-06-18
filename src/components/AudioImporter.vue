@@ -7,19 +7,12 @@
       :loading="audioStore.importing"
       @click="selectFiles"
     >
-      导入音频
+      {{ buttonLabel }}
     </v-btn>
 
-    <div v-if="audioStore.importProgress" class="progress-wrap mt-4">
-      <v-progress-linear
-        :model-value="progressPercent"
-        color="primary"
-        height="8"
-        rounded
-      />
-      <div class="text-mono text-caption text-secondary mt-1">
-        处理中 {{ audioStore.importProgress.processed }} / {{ audioStore.importProgress.total }}
-      </div>
+    <div v-if="audioStore.importing" class="progress-wrap mt-3">
+      <v-progress-linear color="primary" height="6" rounded indeterminate />
+      <div class="text-mono text-caption text-secondary mt-1">正在导入…</div>
     </div>
   </div>
 </template>
@@ -29,16 +22,21 @@ import { computed } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAudioStore } from '@/stores/audio'
 
-const props = defineProps<{
-  projectId: string
+const props = withDefaults(defineProps<{
+  mode?: 'global' | 'project'
+  projectId?: string
+}>(), {
+  mode: 'global',
+})
+
+const emit = defineEmits<{
+  (e: 'imported', result: { created: any[]; existing: any[] }): void
 }>()
 
 const audioStore = useAudioStore()
 
-const progressPercent = computed(() => {
-  const p = audioStore.importProgress
-  if (!p || p.total === 0) return 0
-  return (p.processed / p.total) * 100
+const buttonLabel = computed(() => {
+  return props.mode === 'global' ? '导入到音频库' : '导入音频'
 })
 
 async function selectFiles() {
@@ -55,7 +53,13 @@ async function selectFiles() {
 
   if (!selected || !Array.isArray(selected) || selected.length === 0) return
 
-  await audioStore.importBatch(props.projectId, selected)
+  if (props.mode === 'global') {
+    const result = await audioStore.importGlobalBatch(selected)
+    emit('imported', result)
+  } else if (props.projectId) {
+    const result = await audioStore.importBatch(props.projectId, selected)
+    emit('imported', result)
+  }
 }
 </script>
 
@@ -67,9 +71,10 @@ async function selectFiles() {
 
 .import-btn {
   text-transform: none;
+  letter-spacing: 0.02em;
 }
 
 .progress-wrap {
-  width: 240px;
+  width: 200px;
 }
 </style>

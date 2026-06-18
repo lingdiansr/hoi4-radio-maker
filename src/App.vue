@@ -1,7 +1,12 @@
 <template>
   <v-app class="radio-bureau-app">
     <div class="grain-overlay" aria-hidden="true" />
-    <router-view />
+    <v-layout style="min-height: 100vh">
+      <AppSidebar />
+      <v-main>
+        <router-view />
+      </v-main>
+    </v-layout>
     <v-snackbar
       v-model="toast.show"
       :color="toast.color"
@@ -22,6 +27,7 @@
 import { onMounted } from 'vue'
 import { invokeCommand, isAppError } from '@/api/client'
 import { useToastStore } from '@/stores/toast'
+import AppSidebar from '@/components/AppSidebar.vue'
 
 const toast = useToastStore()
 

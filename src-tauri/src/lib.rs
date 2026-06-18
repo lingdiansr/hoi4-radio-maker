@@ -65,6 +65,8 @@ pub fn run() {
             commands::delete_project,
             commands::list_audio_files,
             commands::list_all_audio_files,
+            commands::add_audio_to_project,
+            commands::remove_audio_from_project,
             commands::delete_audio_file,
             commands::import_audio_batch,
             commands::list_stations,

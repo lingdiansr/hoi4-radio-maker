@@ -28,7 +28,6 @@ export const useAudioStore = defineStore('audio', () => {
   const audioFiles = ref<AudioFile[]>([])
   const allAudioFiles = ref<AudioFile[]>([])
   const importing = ref(false)
-  const importProgress = ref<{ total: number; processed: number } | null>(null)
 
   async function loadAudio(projectId: string) {
     audioFiles.value = await invokeCommand<AudioFile[]>('list_audio_files', { projectId })
@@ -38,9 +37,21 @@ export const useAudioStore = defineStore('audio', () => {
     allAudioFiles.value = await invokeCommand<AudioFile[]>('list_all_audio_files')
   }
 
-  async function importBatch(projectId: string, paths: string[]) {
+  async function importGlobalBatch(paths: string[]): Promise<BatchImportResult> {
     importing.value = true
-    importProgress.value = { total: paths.length, processed: 0 }
+    try {
+      const result = await invokeCommand<BatchImportResult>('import_audio_batch', {
+        paths,
+      })
+      await loadAllAudio()
+      return result
+    } finally {
+      importing.value = false
+    }
+  }
+
+  async function importBatch(projectId: string, paths: string[]): Promise<BatchImportResult> {
+    importing.value = true
     try {
       const result = await invokeCommand<BatchImportResult>('import_audio_batch', {
         projectId,
@@ -50,13 +61,27 @@ export const useAudioStore = defineStore('audio', () => {
       return result
     } finally {
       importing.value = false
-      importProgress.value = null
     }
+  }
+
+  async function addToProject(projectId: string, audioIds: string[]) {
+    await invokeCommand('add_audio_to_project', {
+      projectId,
+      audioIds,
+    })
+    await loadAudio(projectId)
+  }
+
+  async function removeFromProject(projectId: string, audioId: string) {
+    await invokeCommand('remove_audio_from_project', {
+      projectId,
+      audioId,
+    })
+    await loadAudio(projectId)
   }
 
   async function deleteAudio(id: string) {
     await invokeCommand('delete_audio_file', { id })
-    audioFiles.value = audioFiles.value.filter((a) => a.id !== id)
     allAudioFiles.value = allAudioFiles.value.filter((a) => a.id !== id)
   }
 
@@ -64,10 +89,12 @@ export const useAudioStore = defineStore('audio', () => {
     audioFiles,
     allAudioFiles,
     importing,
-    importProgress,
     loadAudio,
     loadAllAudio,
+    importGlobalBatch,
     importBatch,
+    addToProject,
+    removeFromProject,
     deleteAudio,
   }
 })

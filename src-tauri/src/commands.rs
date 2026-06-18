@@ -72,17 +72,44 @@ pub fn list_all_audio_files(state: State<'_, AppState>) -> Result<Vec<AudioFile>
 }
 
 #[tauri::command]
+pub fn add_audio_to_project(
+    state: State<'_, AppState>,
+    project_id: String,
+    audio_ids: Vec<String>,
+) -> Result<()> {
+    let db = lock_db(&state)?;
+    let repo = AudioRepository::new(&db);
+    for id in audio_ids {
+        repo.add_to_project(&project_id, &id)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn remove_audio_from_project(
+    state: State<'_, AppState>,
+    project_id: String,
+    audio_id: String,
+) -> Result<()> {
+    let db = lock_db(&state)?;
+    AudioRepository::new(&db).remove_from_project(&project_id, &audio_id)
+}
+
+#[tauri::command]
 pub fn delete_audio_file(state: State<'_, AppState>, id: String) -> Result<()> {
     let db = lock_db(&state)?;
     AudioRepository::new(&db).delete(&id)
 }
 
-/// Batch import audio files into the global library and add them to a project.
+/// Batch import audio files into the global library.
+///
+/// If `project_id` is provided, the imported/duplicate audio files are also
+/// added to that project's reference list.
 #[tauri::command]
 pub async fn import_audio_batch(
     state: State<'_, AppState>,
-    project_id: String,
     paths: Vec<String>,
+    project_id: Option<String>,
 ) -> Result<BatchImportResult> {
     if paths.is_empty() {
         return Ok(BatchImportResult {
@@ -91,11 +118,13 @@ pub async fn import_audio_batch(
         });
     }
 
-    // Resolve project and settings before any await point.
+    // Resolve settings and validate project (if given) before any await point.
     let (settings, audio_store_dir) = {
         let db = lock_db(&state)?;
-        if db.get_project(&project_id)?.is_none() {
-            return Err(Hoi4RadioError::ProjectNotFound { id: project_id });
+        if let Some(ref pid) = project_id {
+            if db.get_project(pid)?.is_none() {
+                return Err(Hoi4RadioError::ProjectNotFound { id: pid.clone() });
+            }
         }
         let settings = Settings::get(&db)?;
         let app_dir = dirs::data_dir()
@@ -186,7 +215,7 @@ pub async fn import_audio_batch(
         .try_collect::<Vec<_>>()
         .await?;
 
-    // 4. Persist everything and create project references.
+    // 4. Persist everything and create project references if requested.
     let mut created = Vec::new();
     {
         let db = lock_db(&state)?;
@@ -195,8 +224,10 @@ pub async fn import_audio_batch(
             repo.create(&audio)?;
             created.push(audio);
         }
-        for audio in existing.iter().chain(created.iter()) {
-            repo.add_to_project(&project_id, &audio.id)?;
+        if let Some(ref pid) = project_id {
+            for audio in existing.iter().chain(created.iter()) {
+                repo.add_to_project(pid, &audio.id)?;
+            }
         }
     }
 

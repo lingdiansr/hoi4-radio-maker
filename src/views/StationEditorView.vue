@@ -62,7 +62,7 @@
                       <template #prepend>
                         <v-icon color="primary" class="mr-4">mdi-music-note</v-icon>
                       </template>
-                      <v-list-item-title>{{ entry.audio_file_id }}</v-list-item-title>
+                      <v-list-item-title>{{ audioTitle(entry.audio_file_id) }}</v-list-item-title>
                       <v-list-item-subtitle>factor: {{ entry.chance.factor }}</v-list-item-subtitle>
                       <template #append>
                         <v-btn
@@ -74,31 +74,19 @@
                       </template>
                     </v-list-item>
                   </v-list>
-                  <v-alert v-else type="info" variant="tonal" text="该电台暂无歌曲" />
+                  <v-alert v-else type="info" variant="tonal" text="该电台暂无歌曲，点击下方按钮从音频库添加" />
 
                   <v-divider class="my-4" opacity="0.2" />
 
-                  <div class="d-flex align-end gap-3 add-entry-row">
-                    <v-select
-                      v-model="selectedAudio"
-                      label="选择音频"
-                      :items="audioStore.audioFiles"
-                      item-title="title"
-                      item-value="id"
-                      class="flex-grow-1"
-                      hide-details
-                    />
-                    <v-text-field
-                      v-model="factor"
-                      label="Factor"
-                      type="number"
-                      class="factor-field"
-                      hide-details
-                    />
-                    <v-btn color="primary" prepend-icon="mdi-plus" @click="addEntry(station.id)">
-                      添加
-                    </v-btn>
-                  </div>
+                  <v-btn
+                    color="primary"
+                    variant="outlined"
+                    prepend-icon="mdi-music-box-multiple"
+                    class="action-btn"
+                    @click="openPicker(station.id)"
+                  >
+                    从音频库添加歌曲
+                  </v-btn>
                 </v-card-text>
               </v-card>
             </v-window-item>
@@ -149,6 +137,12 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- Audio Picker -->
+    <AudioPickerDialog
+      v-model="showPicker"
+      @confirm="onAudioSelected"
+    />
   </div>
 </template>
 
@@ -157,15 +151,16 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStationStore } from '@/stores/station'
 import { useAudioStore } from '@/stores/audio'
+import AudioPickerDialog from '@/components/AudioPickerDialog.vue'
 
 const route = useRoute()
 const stationStore = useStationStore()
 const audioStore = useAudioStore()
 const activeTab = ref<string>('')
-const selectedAudio = ref<string>('')
-const factor = ref<number>(1)
 const showCreateDialog = ref(false)
+const showPicker = ref(false)
 const newStationName = ref('')
+const currentStationId = ref<string>('')
 
 const projectId = computed(() => route.params.id as string)
 
@@ -190,6 +185,11 @@ watch(
   { immediate: true }
 )
 
+function audioTitle(id: string): string {
+  const audio = audioStore.audioFiles.find((a) => a.id === id)
+  return audio?.title || id
+}
+
 function openCreateDialog() {
   newStationName.value = ''
   showCreateDialog.value = true
@@ -203,10 +203,17 @@ async function createStation() {
   newStationName.value = ''
 }
 
-async function addEntry(stationId: string) {
-  if (!selectedAudio.value) return
-  await stationStore.addEntry(stationId, selectedAudio.value, { factor: factor.value })
-  selectedAudio.value = ''
+function openPicker(stationId: string) {
+  currentStationId.value = stationId
+  showPicker.value = true
+}
+
+async function onAudioSelected(audioIds: string[]) {
+  if (!currentStationId.value || !projectId.value) return
+  await audioStore.addToProject(projectId.value, audioIds)
+  for (const audioId of audioIds) {
+    await stationStore.addEntry(currentStationId.value, audioId, { factor: 1 })
+  }
 }
 
 async function removeEntry(stationId: string, audioFileId: string) {
@@ -242,14 +249,6 @@ async function removeEntry(stationId: string, audioFileId: string) {
 .entry-item:hover {
   background: rgba(255, 176, 32, 0.06) !important;
   border-color: rgba(255, 176, 32, 0.2);
-}
-
-.add-entry-row {
-  gap: 12px;
-}
-
-.factor-field {
-  max-width: 120px;
 }
 
 .empty-state {

@@ -76,6 +76,56 @@
             >
               保存项目设置
             </v-btn>
+
+            <v-divider class="my-6" opacity="0.2" />
+
+            <div class="text-mono text-caption text-secondary mb-3">PROJECT AUDIO REFERENCES</div>
+            <v-card class="ref-card" variant="flat" rounded="lg">
+              <v-card-title class="d-flex justify-space-between align-center pa-4">
+                <span class="text-body text-subtitle-1 font-weight-medium">项目引用的音频</span>
+                <v-btn
+                  color="primary"
+                  variant="text"
+                  size="small"
+                  prepend-icon="mdi-music-box-multiple"
+                  class="action-btn"
+                  @click="showPicker = true"
+                >
+                  从音频库添加
+                </v-btn>
+              </v-card-title>
+              <v-card-text class="pa-4 pt-0">
+                <v-list v-if="audioStore.audioFiles.length > 0" bg-color="transparent">
+                  <v-list-item
+                    v-for="audio in audioStore.audioFiles"
+                    :key="audio.id"
+                    class="ref-item mb-2"
+                    rounded="lg"
+                  >
+                    <template #prepend>
+                      <v-icon color="primary" class="mr-3">mdi-music-note</v-icon>
+                    </template>
+                    <v-list-item-title>{{ audio.title }}</v-list-item-title>
+                    <v-list-item-subtitle>
+                      {{ formatDuration(audio.duration_secs) }} · {{ audio.sample_rate }} Hz
+                    </v-list-item-subtitle>
+                    <template #append>
+                      <v-btn
+                        icon="mdi-link-off"
+                        variant="text"
+                        size="small"
+                        color="error"
+                        title="移除引用"
+                        @click="removeRef(audio.id)"
+                      />
+                    </template>
+                  </v-list-item>
+                </v-list>
+                <div v-else class="text-body text-secondary text-center py-4">
+                  暂无引用音频，请从音频库添加
+                </div>
+              </v-card-text>
+            </v-card>
           </v-col>
 
           <v-col cols="12" lg="4">
@@ -91,19 +141,38 @@
         </v-row>
       </v-card-text>
     </v-card>
+
+    <AudioPickerDialog
+      v-model="showPicker"
+      @confirm="onAudioSelected"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, watch, ref, computed } from 'vue'
+import { reactive, watch, ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useProjectStore, type UpdateProjectRequest } from '@/stores/project'
+import { useAudioStore } from '@/stores/audio'
 import { useCommand } from '@/composables/useCommand'
 import PathField from '@/components/PathField.vue'
+import AudioPickerDialog from '@/components/AudioPickerDialog.vue'
 
+const route = useRoute()
 const projectStore = useProjectStore()
+const audioStore = useAudioStore()
 const { run } = useCommand()
 
 const saving = ref(false)
+const showPicker = ref(false)
+
+const projectId = computed(() => route.params.id as string)
+
+onMounted(() => {
+  if (projectId.value) {
+    audioStore.loadAudio(projectId.value)
+  }
+})
 
 const form = reactive<UpdateProjectRequest>({
   name: '',
@@ -156,6 +225,22 @@ async function save() {
     saving.value = false
   }
 }
+
+async function onAudioSelected(audioIds: string[]) {
+  if (!projectId.value) return
+  await audioStore.addToProject(projectId.value, audioIds)
+}
+
+async function removeRef(audioId: string) {
+  if (!projectId.value) return
+  await audioStore.removeFromProject(projectId.value, audioId)
+}
+
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
 </script>
 
 <style scoped>
@@ -173,5 +258,20 @@ async function save() {
   background: rgba(255, 176, 32, 0.06);
   border: 1px solid rgba(255, 176, 32, 0.2);
   height: 100%;
+}
+
+.ref-card {
+  background: rgba(37, 33, 28, 0.5);
+  border: 1px solid rgba(74, 66, 56, 0.3);
+}
+
+.ref-item {
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.ref-item:hover {
+  background: rgba(255, 176, 32, 0.06) !important;
+  border-color: rgba(255, 176, 32, 0.2);
 }
 </style>

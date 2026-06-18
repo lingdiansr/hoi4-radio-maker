@@ -1,76 +1,65 @@
 <template>
-  <v-layout style="min-height: 100vh">
-    <v-navigation-drawer permanent width="300" class="bureau-sider">
-      <ProjectList />
-    </v-navigation-drawer>
-    <v-main>
-      <div class="project-header pa-6 pb-4">
-        <div class="d-flex justify-space-between align-start">
-          <div>
-            <div class="text-mono text-caption text-secondary mb-1">PROJECT</div>
-            <h1 class="text-display text-h3 mb-2">
-              {{ projectStore.currentProject?.name || '未选择项目' }}
-            </h1>
-            <div v-if="projectStore.currentProject" class="text-mono text-secondary">
-              {{ projectStore.currentProject.version }} · {{ projectStore.currentProject.supported_version }}
-            </div>
-          </div>
-          <div class="d-flex gap-3">
-            <v-btn
-              variant="outlined"
-              prepend-icon="mdi-check-circle"
-              class="action-btn"
-              @click="validate"
-            >
-              验证
-            </v-btn>
-            <v-btn
-              color="primary"
-              prepend-icon="mdi-cube-send"
-              class="action-btn generate-btn"
-              @click="generate"
-            >
-              生成 Mod
-            </v-btn>
+  <div class="project-view">
+    <div class="project-header pa-6 pb-4">
+      <div class="d-flex justify-space-between align-start">
+        <div>
+          <div class="text-mono text-caption text-secondary mb-1">PROJECT</div>
+          <h1 class="text-display text-h3 mb-2">
+            {{ projectStore.currentProject?.name || '未选择项目' }}
+          </h1>
+          <div v-if="projectStore.currentProject" class="text-mono text-secondary">
+            {{ projectStore.currentProject.version }} · {{ projectStore.currentProject.supported_version }}
           </div>
         </div>
+        <div class="d-flex gap-3">
+          <v-btn
+            variant="outlined"
+            prepend-icon="mdi-check-circle"
+            class="action-btn"
+            @click="validate"
+          >
+            验证
+          </v-btn>
+          <v-btn
+            color="primary"
+            prepend-icon="mdi-cube-send"
+            class="action-btn generate-btn"
+            @click="generate"
+          >
+            生成 Mod
+          </v-btn>
+        </div>
       </div>
+    </div>
 
-      <v-divider opacity="0.2" />
+    <v-divider opacity="0.2" />
 
-      <v-tabs v-model="tab" class="bureau-tabs" bg-color="transparent">
-        <v-tab value="audio" prepend-icon="mdi-music-box-multiple">音频库</v-tab>
-        <v-tab value="stations" prepend-icon="mdi-antenna">电台编辑</v-tab>
-        <v-tab value="settings" prepend-icon="mdi-file-cog">项目设置</v-tab>
-      </v-tabs>
+    <v-tabs v-model="tab" class="bureau-tabs" bg-color="transparent">
+      <v-tab value="stations" prepend-icon="mdi-antenna">电台编辑</v-tab>
+      <v-tab value="settings" prepend-icon="mdi-file-cog">项目设置</v-tab>
+    </v-tabs>
 
-      <v-window v-model="tab" class="bureau-window">
-        <v-window-item value="audio">
-          <AudioLibraryView />
-        </v-window-item>
-        <v-window-item value="stations">
-          <StationEditorView />
-        </v-window-item>
-        <v-window-item value="settings">
-          <ProjectSettingsView />
-        </v-window-item>
-      </v-window>
-    </v-main>
-  </v-layout>
+    <v-window v-model="tab" class="bureau-window">
+      <v-window-item value="stations">
+        <StationEditorView />
+      </v-window-item>
+      <v-window-item value="settings">
+        <ProjectSettingsView />
+      </v-window-item>
+    </v-window>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import ProjectList from '@/components/ProjectList.vue'
-import AudioLibraryView from '@/views/AudioLibraryView.vue'
 import StationEditorView from '@/views/StationEditorView.vue'
 import ProjectSettingsView from '@/views/ProjectSettingsView.vue'
 import { useProjectStore } from '@/stores/project'
 import { useCommand } from '@/composables/useCommand'
 import { useToastStore } from '@/stores/toast'
 
-const tab = ref('audio')
+const tab = ref('stations')
 const route = useRoute()
 const projectStore = useProjectStore()
 const { run } = useCommand()
@@ -111,9 +100,8 @@ async function validate() {
 </script>
 
 <style scoped>
-.bureau-sider {
-  background: rgba(26, 23, 20, 0.85) !important;
-  backdrop-filter: blur(8px);
+.project-view {
+  min-height: 100vh;
 }
 
 .project-header {

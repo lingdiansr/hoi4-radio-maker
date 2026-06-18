@@ -1,0 +1,316 @@
+<template>
+  <div class="archive-view pa-6">
+    <v-card class="archive-card" variant="elevated" rounded="xl">
+      <v-card-title class="d-flex justify-space-between align-start pa-6">
+        <div>
+          <div class="text-mono text-caption text-secondary mb-1">GLOBAL ARCHIVE</div>
+          <div class="text-display text-h4 archive-title">音频库</div>
+          <div class="text-body text-secondary mt-2">
+            共 {{ audioStore.allAudioFiles.length }} 条音频 · 全局仓库可被所有项目引用
+          </div>
+        </div>
+        <AudioImporter mode="global" @imported="onImported" />
+      </v-card-title>
+
+      <v-divider opacity="0.2" />
+
+      <v-card-text class="pa-6">
+        <!-- Search and filters -->
+        <v-row class="mb-6">
+          <v-col cols="12" md="6">
+            <v-text-field
+              v-model="search"
+              label="搜索音频"
+              placeholder="标题、艺术家、哈希…"
+              prepend-inner-icon="mdi-magnify"
+              variant="outlined"
+              density="comfortable"
+              hide-details
+              class="search-field"
+            />
+          </v-col>
+          <v-col cols="12" md="6" class="d-flex align-center gap-3">
+            <v-chip-group v-model="selectedTag" class="tag-filter">
+              <v-chip
+                v-for="tag in allTags"
+                :key="tag"
+                :value="tag"
+                filter
+                variant="outlined"
+                size="small"
+              >
+                {{ tag }}
+              </v-chip>
+            </v-chip-group>
+          </v-col>
+        </v-row>
+
+        <!-- Empty state -->
+        <div v-if="filteredAudio.length === 0" class="empty-state text-center py-16">
+          <v-icon size="80" color="secondary" class="mb-6">mdi-archive-music-outline</v-icon>
+          <div class="text-display text-h5 mb-2">音频库为空</div>
+          <div class="text-body text-secondary mb-6">
+            这里是全局音频仓库。导入音频后，可在任意项目中引用。
+          </div>
+          <AudioImporter mode="global" @imported="onImported" />
+        </div>
+
+        <!-- Audio grid -->
+        <v-row v-else>
+          <v-col
+            v-for="audio in filteredAudio"
+            :key="audio.id"
+            cols="12"
+            sm="6"
+            lg="4"
+            xl="3"
+          >
+            <v-card class="audio-item" variant="flat" rounded="lg">
+              <div class="audio-wave" aria-hidden="true">
+                <div
+                  v-for="i in 12"
+                  :key="i"
+                  class="wave-bar"
+                  :style="{ height: waveHeight(audio.id, i) }"
+                />
+              </div>
+              <v-card-text class="pa-4 audio-content">
+                <div class="d-flex justify-space-between align-start mb-3">
+                  <v-icon color="primary" size="32">mdi-music-note</v-icon>
+                  <v-btn
+                    icon="mdi-delete-outline"
+                    variant="text"
+                    size="small"
+                    color="error"
+                    @click="confirmDelete(audio)"
+                  />
+                </div>
+                <div class="text-body text-subtitle-1 font-weight-medium text-truncate mb-1">
+                  {{ audio.title }}
+                </div>
+                <div class="text-mono text-caption text-secondary mb-3">
+                  {{ audio.artist || '未知艺术家' }} · {{ formatDuration(audio.duration_secs) }}
+                </div>
+                <div class="d-flex justify-space-between align-center text-mono text-caption text-secondary">
+                  <span>{{ audio.sample_rate }} Hz · {{ audio.channels }} ch</span>
+                  <span class="hash">{{ audio.source_hash.slice(0, 8) }}</span>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
+      </v-card-text>
+    </v-card>
+
+    <!-- Delete Confirmation Dialog -->
+    <v-dialog v-model="showDeleteDialog" max-width="420" class="bureau-dialog">
+      <v-card class="dialog-card">
+        <div class="dialog-accent dialog-accent--danger" />
+        <v-card-title class="dialog-title pa-6 pb-2">
+          <div class="d-flex align-center gap-3">
+            <v-icon color="error" size="28">mdi-alert-circle</v-icon>
+            <div>
+              <div class="text-mono text-caption text-secondary">CONFIRM DELETION</div>
+              <div class="text-display text-h5">删除音频</div>
+            </div>
+          </div>
+        </v-card-title>
+
+        <v-card-text class="pa-6 pt-4 text-body-1">
+          确定要从全局音频库中删除 <strong class="text-primary">{{ audioToDelete?.title }}</strong> 吗？
+          <br><br>
+          <span class="text-error">警告：</span>如果该音频仍被任何项目引用，删除后这些项目将丢失该音频。
+        </v-card-text>
+
+        <v-divider opacity="0.2" />
+
+        <v-card-actions class="pa-6">
+          <v-spacer />
+          <v-btn variant="text" class="action-btn" @click="showDeleteDialog = false">取消</v-btn>
+          <v-btn color="error" class="action-btn" prepend-icon="mdi-delete-outline" @click="handleDelete">
+            删除
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { useAudioStore, type AudioFile } from '@/stores/audio'
+import AudioImporter from '@/components/AudioImporter.vue'
+
+const audioStore = useAudioStore()
+const search = ref('')
+const selectedTag = ref<string | null>(null)
+const showDeleteDialog = ref(false)
+const audioToDelete = ref<AudioFile | null>(null)
+
+onMounted(() => {
+  audioStore.loadAllAudio()
+})
+
+const allTags = computed(() => {
+  const tags = new Set<string>()
+  audioStore.allAudioFiles.forEach((a) => a.tags.forEach((t) => tags.add(t)))
+  return Array.from(tags).slice(0, 8)
+})
+
+const filteredAudio = computed(() => {
+  let list = audioStore.allAudioFiles
+  const q = search.value.trim().toLowerCase()
+  if (q) {
+    list = list.filter(
+      (a) =>
+        a.title.toLowerCase().includes(q) ||
+        (a.artist?.toLowerCase().includes(q) ?? false) ||
+        a.source_hash.toLowerCase().includes(q)
+    )
+  }
+  if (selectedTag.value) {
+    list = list.filter((a) => a.tags.includes(selectedTag.value!))
+  }
+  return list
+})
+
+function onImported() {
+  audioStore.loadAllAudio()
+}
+
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+function waveHeight(id: string, i: number): string {
+  // Deterministic pseudo-random wave height based on hash
+  const char = id.charCodeAt(i % id.length)
+  const h = 20 + ((char * i) % 70)
+  return `${h}%`
+}
+
+function confirmDelete(audio: AudioFile) {
+  audioToDelete.value = audio
+  showDeleteDialog.value = true
+}
+
+async function handleDelete() {
+  if (!audioToDelete.value) return
+  try {
+    await audioStore.deleteAudio(audioToDelete.value.id)
+    showDeleteDialog.value = false
+    audioToDelete.value = null
+  } catch (err) {
+    // Error already handled by api client
+  }
+}
+</script>
+
+<style scoped>
+.archive-view {
+  min-height: 100vh;
+}
+
+.archive-card {
+  background: rgba(26, 23, 20, 0.7);
+  border: 1px solid rgba(74, 66, 56, 0.4);
+}
+
+.archive-title {
+  color: #ffb020;
+}
+
+.search-field :deep(.v-field__outline) {
+  color: rgba(74, 66, 56, 0.6);
+}
+
+.tag-filter :deep(.v-chip) {
+  color: #c4b5a0;
+  border-color: rgba(74, 66, 56, 0.6);
+}
+
+.tag-filter :deep(.v-chip--selected) {
+  background: rgba(255, 176, 32, 0.14) !important;
+  color: #ffb020;
+  border-color: rgba(255, 176, 32, 0.4);
+}
+
+.audio-item {
+  background: rgba(37, 33, 28, 0.5);
+  border: 1px solid rgba(74, 66, 56, 0.3);
+  transition: all 0.25s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.audio-item:hover {
+  background: rgba(255, 176, 32, 0.06);
+  border-color: rgba(255, 176, 32, 0.25);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+}
+
+.audio-wave {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 48px;
+  padding: 12px 16px 0;
+  gap: 4px;
+  opacity: 0.35;
+}
+
+.wave-bar {
+  flex: 1;
+  min-width: 3px;
+  background: linear-gradient(180deg, #ffb020 0%, rgba(255, 176, 32, 0.2) 100%);
+  border-radius: 2px 2px 0 0;
+  transition: height 0.3s ease;
+}
+
+.audio-item:hover .wave-bar {
+  background: linear-gradient(180deg, #ffb020 0%, rgba(255, 176, 32, 0.5) 100%);
+}
+
+.audio-content {
+  position: relative;
+  z-index: 1;
+}
+
+.hash {
+  opacity: 0.6;
+  font-size: 0.7rem;
+}
+
+.empty-state {
+  border: 2px dashed rgba(74, 66, 56, 0.6);
+  border-radius: 20px;
+}
+
+.dialog-card {
+  background: #1a1714;
+  border: 1px solid rgba(74, 66, 56, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+
+.dialog-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ff8a80 0%, rgba(255, 138, 128, 0.3) 100%);
+}
+
+.dialog-title {
+  padding-top: 28px;
+}
+
+.action-btn {
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+</style>
