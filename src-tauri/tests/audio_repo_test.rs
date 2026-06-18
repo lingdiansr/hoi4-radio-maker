@@ -1,3 +1,4 @@
+use chrono::Utc;
 use hoi4_radio_maker_lib::audio_repo::AudioRepository;
 use hoi4_radio_maker_lib::db::Db;
 use hoi4_radio_maker_lib::models::{AudioFile, CreateProjectRequest};
@@ -20,8 +21,10 @@ fn test_audio_file_lifecycle() {
         })
         .unwrap();
 
+    let now = Utc::now();
     let audio = AudioFile {
         id: "song_001".into(),
+        source_hash: "abc123".into(),
         title: "Test Song".into(),
         artist: None,
         source_path: PathBuf::from("/tmp/test.mp3"),
@@ -32,15 +35,19 @@ fn test_audio_file_lifecycle() {
         volume: 0.75,
         tags: vec![],
         notes: None,
+        created_at: now,
+        updated_at: now,
     };
 
     let repo = AudioRepository::new(&db);
-    repo.create(&project.id, &audio).unwrap();
+    repo.create(&audio).unwrap();
+    repo.add_to_project(&project.id, &audio.id).unwrap();
 
     let list = repo.list(&project.id).unwrap();
     assert_eq!(list.len(), 1);
     assert_eq!(list[0].title, "Test Song");
 
+    repo.remove_from_project(&project.id, &audio.id).unwrap();
     repo.delete(&audio.id).unwrap();
     let list = repo.list(&project.id).unwrap();
     assert!(list.is_empty());

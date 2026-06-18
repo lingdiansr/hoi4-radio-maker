@@ -1,9 +1,19 @@
 <template>
   <div class="pa-6">
     <v-card class="settings-card" variant="elevated" rounded="xl">
-      <v-card-title class="pa-6 pb-2">
-        <div class="text-mono text-caption text-secondary mb-1">CONFIGURATION</div>
-        <div class="text-display text-h5">设置</div>
+      <v-card-title class="d-flex justify-space-between align-start pa-6 pb-2">
+        <div>
+          <div class="text-mono text-caption text-secondary mb-1">GLOBAL CONFIGURATION</div>
+          <div class="text-display text-h5">全局设置</div>
+        </div>
+        <v-btn
+          variant="text"
+          prepend-icon="mdi-arrow-left"
+          class="back-btn"
+          @click="router.back()"
+        >
+          返回
+        </v-btn>
       </v-card-title>
 
       <v-divider opacity="0.2" />
@@ -11,26 +21,40 @@
       <v-card-text class="pa-6">
         <v-row>
           <v-col cols="12" md="8">
-            <v-text-field
-              v-model="settings.ffmpeg_path"
+            <PathField
+              v-model="ffmpegPath"
               label="ffmpeg 路径"
-              placeholder="ffmpeg"
+              placeholder="选择 ffmpeg 可执行文件"
               prepend-inner-icon="mdi-movie-play"
+              picker-mode="file"
               class="mb-4"
             />
-            <v-text-field
-              v-model="settings.ffprobe_path"
+            <PathField
+              v-model="ffprobePath"
               label="ffprobe 路径"
-              placeholder="ffprobe"
+              placeholder="选择 ffprobe 可执行文件"
               prepend-inner-icon="mdi-magnify-scan"
+              picker-mode="file"
               class="mb-4"
             />
-            <v-text-field
-              v-model="settings.hoi4_game_dir"
+            <PathField
+              v-model="hoi4Path"
               label="HOI4 游戏目录"
-              placeholder="..."
+              placeholder="选择 Hearts of Iron IV 安装目录"
               prepend-inner-icon="mdi-folder-open"
+              picker-mode="directory"
               class="mb-4"
+            />
+            <v-slider
+              v-model="settings.import_concurrency"
+              label="导入并发数"
+              min="1"
+              max="16"
+              step="1"
+              thumb-label
+              prepend-icon="mdi-swap-horizontal"
+              class="mb-4"
+              hide-details="auto"
             />
             <v-select
               v-model="settings.theme"
@@ -40,6 +64,7 @@
               item-value="value"
               prepend-inner-icon="mdi-palette"
               class="mb-6"
+              hide-details="auto"
             />
             <v-btn
               color="primary"
@@ -57,7 +82,7 @@
               <v-card-text>
                 <v-icon color="primary" size="32" class="mb-2">mdi-information-outline</v-icon>
                 <div class="text-body text-secondary text-body-2">
-                  如果 ffmpeg 和 ffprobe 不在系统 PATH 中，请在此指定完整路径。主题更改将在下次启动时完全生效。
+                  全局设置会保存在应用数据目录中，对所有项目生效。启动时会自动探测 ffmpeg 与 ffprobe；若未找到且未手动指定，将提示错误。导入并发数控制同时计算文件哈希的并行度（ffmpeg 转码会在此基础上减半运行）。
                 </div>
               </v-card-text>
             </v-card>
@@ -69,15 +94,20 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, onMounted } from 'vue'
+import { reactive, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { invokeCommand } from '@/api/client'
 import { useCommand } from '@/composables/useCommand'
+import PathField from '@/components/PathField.vue'
+
+const router = useRouter()
 
 interface Settings {
   ffmpeg_path: string | null
   ffprobe_path: string | null
   hoi4_game_dir: string | null
   theme: string
+  import_concurrency: number
 }
 
 const { run } = useCommand()
@@ -87,6 +117,28 @@ const settings = reactive<Settings>({
   ffprobe_path: null,
   hoi4_game_dir: null,
   theme: 'dark',
+  import_concurrency: 8,
+})
+
+const ffmpegPath = computed({
+  get: () => settings.ffmpeg_path ?? '',
+  set: (v: string) => {
+    settings.ffmpeg_path = v.trim() || null
+  },
+})
+
+const ffprobePath = computed({
+  get: () => settings.ffprobe_path ?? '',
+  set: (v: string) => {
+    settings.ffprobe_path = v.trim() || null
+  },
+})
+
+const hoi4Path = computed({
+  get: () => settings.hoi4_game_dir ?? '',
+  set: (v: string) => {
+    settings.hoi4_game_dir = v.trim() || null
+  },
 })
 
 const themeOptions = [
@@ -113,6 +165,16 @@ async function save() {
 .save-btn {
   text-transform: none;
   letter-spacing: 0.02em;
+}
+
+.back-btn {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: #c4b5a0;
+}
+
+.back-btn:hover {
+  color: #ffb020;
 }
 
 .hint-card {

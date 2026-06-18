@@ -1,136 +1,116 @@
 <template>
   <div class="pa-6">
-    <v-card class="audio-library-card" variant="elevated" rounded="xl">
+    <v-card class="audio-card" variant="elevated" rounded="xl">
       <v-card-title class="d-flex justify-space-between align-center pa-6">
         <div>
           <div class="text-mono text-caption text-secondary mb-1">AUDIO ARCHIVE</div>
           <div class="text-display text-h5">音频库</div>
         </div>
-        <AudioImporter @import="onImport" />
+        <AudioImporter :project-id="projectId" />
       </v-card-title>
 
       <v-divider opacity="0.2" />
 
       <v-card-text class="pa-6">
-        <div v-if="audioStore.audioFiles.length === 0" class="empty-drop text-center py-12">
-          <v-icon size="64" color="secondary" class="mb-4 drop-icon">mdi-music-box-outline</v-icon>
-          <div class="text-body text-secondary text-h6 mb-2">音频库为空</div>
-          <div class="text-body text-secondary mb-6">导入 MP3 / WAV / FLAC / OGG 文件开始构建你的电台</div>
-          <AudioImporter @import="onImport" />
+        <v-alert
+          v-if="!projectId"
+          type="warning"
+          variant="tonal"
+          text="未选择项目"
+          class="mb-4"
+        />
+
+        <div v-else-if="audioStore.audioFiles.length === 0" class="empty-state text-center py-12">
+          <v-icon size="64" color="secondary" class="mb-4">mdi-music-box-outline</v-icon>
+          <div class="text-body text-secondary text-h6 mb-2">暂无音频</div>
+          <div class="text-body text-secondary mb-4">点击右上角导入音频到当前项目</div>
         </div>
 
-        <v-list v-else class="audio-list" bg-color="transparent">
-          <v-list-item
-            v-for="(audio, index) in audioStore.audioFiles"
+        <v-row v-else>
+          <v-col
+            v-for="audio in audioStore.audioFiles"
             :key="audio.id"
-            class="audio-item mb-3"
-            rounded="lg"
+            cols="12"
+            sm="6"
+            lg="4"
           >
-            <template #prepend>
-              <div class="audio-number text-mono">{{ String(index + 1).padStart(2, '0') }}</div>
-              <v-avatar color="surface-variant" size="48" class="mr-4">
-                <v-icon color="primary">mdi-music-note</v-icon>
-              </v-avatar>
-            </template>
-
-            <v-list-item-title>{{ audio.title }}</v-list-item-title>
-            <v-list-item-subtitle>
-              {{ audio.artist || '未知艺术家' }} · {{ formatDuration(audio.duration_secs) }} · {{ audio.sample_rate }}Hz · {{ audio.channels }}ch
-            </v-list-item-subtitle>
-
-            <template #append>
-              <v-btn
-                icon="mdi-delete-outline"
-                variant="text"
-                color="error"
-                class="delete-btn"
-                @click="audioStore.deleteAudio(audio.id)"
-              />
-            </template>
-          </v-list-item>
-        </v-list>
+            <v-card class="audio-item" variant="flat" rounded="lg">
+              <v-card-text class="pa-4">
+                <div class="d-flex align-start gap-3">
+                  <v-icon color="primary" size="32">mdi-music-note</v-icon>
+                  <div class="flex-grow-1">
+                    <div class="text-body text-subtitle-1 font-weight-medium">{{ audio.title }}</div>
+                    <div class="text-mono text-caption text-secondary mt-1">
+                      {{ formatDuration(audio.duration_secs) }} · {{ audio.sample_rate }} Hz · {{ audio.channels }} ch
+                    </div>
+                    <div class="text-mono text-caption text-secondary mt-1 hash">
+                      {{ audio.source_hash.slice(0, 12) }}…
+                    </div>
+                  </div>
+                  <v-btn
+                    icon="mdi-delete-outline"
+                    variant="text"
+                    size="small"
+                    color="error"
+                    @click="audioStore.deleteAudio(audio.id)"
+                  />
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
       </v-card-text>
     </v-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import AudioImporter from '@/components/AudioImporter.vue'
+import { computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAudioStore } from '@/stores/audio'
+import AudioImporter from '@/components/AudioImporter.vue'
 
+const route = useRoute()
 const audioStore = useAudioStore()
 
+const projectId = computed(() => route.params.id as string)
+
 onMounted(() => {
-  audioStore.loadAudio()
+  if (projectId.value) {
+    audioStore.loadAudio(projectId.value)
+  }
 })
 
-async function onImport(paths: string[]) {
-  for (const path of paths) {
-    await audioStore.importAudio(path)
-  }
-}
-
-function formatDuration(seconds: number) {
+function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = Math.floor(seconds % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
+  return `${m}:${String(s).padStart(2, '0')}`
 }
 </script>
 
 <style scoped>
-.audio-library-card {
+.audio-card {
   background: rgba(26, 23, 20, 0.7);
   border: 1px solid rgba(74, 66, 56, 0.4);
 }
 
-.empty-drop {
-  border: 2px dashed rgba(74, 66, 56, 0.6);
-  border-radius: 16px;
-  transition: all 0.3s ease;
-}
-
-.empty-drop:hover {
-  border-color: rgba(255, 176, 32, 0.5);
-  background: rgba(255, 176, 32, 0.04);
-}
-
-.drop-icon {
-  animation: float 4s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
-}
-
-.audio-list {
-  overflow-y: auto;
-}
-
 .audio-item {
+  background: rgba(37, 33, 28, 0.5);
+  border: 1px solid rgba(74, 66, 56, 0.3);
   transition: all 0.2s ease;
-  border: 1px solid transparent;
 }
 
 .audio-item:hover {
-  background: rgba(255, 176, 32, 0.06) !important;
+  background: rgba(255, 176, 32, 0.06);
   border-color: rgba(255, 176, 32, 0.2);
 }
 
-.audio-number {
-  width: 36px;
-  color: #ffb020;
-  font-size: 0.8rem;
-  opacity: 0.6;
+.hash {
+  opacity: 0.7;
 }
 
-.delete-btn {
-  opacity: 0.5;
-  transition: opacity 0.2s ease;
-}
-
-.audio-item:hover .delete-btn {
-  opacity: 1;
+.empty-state {
+  border: 2px dashed rgba(74, 66, 56, 0.6);
+  border-radius: 16px;
 }
 </style>

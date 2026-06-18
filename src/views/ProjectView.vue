@@ -41,7 +41,7 @@
       <v-tabs v-model="tab" class="bureau-tabs" bg-color="transparent">
         <v-tab value="audio" prepend-icon="mdi-music-box-multiple">音频库</v-tab>
         <v-tab value="stations" prepend-icon="mdi-antenna">电台编辑</v-tab>
-        <v-tab value="settings" prepend-icon="mdi-cog">设置</v-tab>
+        <v-tab value="settings" prepend-icon="mdi-file-cog">项目设置</v-tab>
       </v-tabs>
 
       <v-window v-model="tab" class="bureau-window">
@@ -52,7 +52,7 @@
           <StationEditorView />
         </v-window-item>
         <v-window-item value="settings">
-          <SettingsView />
+          <ProjectSettingsView />
         </v-window-item>
       </v-window>
     </v-main>
@@ -65,14 +65,16 @@ import { useRoute } from 'vue-router'
 import ProjectList from '@/components/ProjectList.vue'
 import AudioLibraryView from '@/views/AudioLibraryView.vue'
 import StationEditorView from '@/views/StationEditorView.vue'
-import SettingsView from '@/views/SettingsView.vue'
+import ProjectSettingsView from '@/views/ProjectSettingsView.vue'
 import { useProjectStore } from '@/stores/project'
 import { useCommand } from '@/composables/useCommand'
+import { useToastStore } from '@/stores/toast'
 
 const tab = ref('audio')
 const route = useRoute()
 const projectStore = useProjectStore()
 const { run } = useCommand()
+const toast = useToastStore()
 
 onMounted(() => {
   const id = route.params.id as string
@@ -88,7 +90,7 @@ async function generate() {
     projectId: projectStore.currentProject.id,
   })
   if (out) {
-    alert(`已生成到: ${out}`)
+    toast.display(`已生成到: ${out}`, 'success', 6000)
   }
 }
 
@@ -99,7 +101,11 @@ async function validate() {
   })
   if (report) {
     const status = report.passed ? '通过' : '未通过'
-    alert(`验证${status}\n错误: ${report.errors.length}\n警告: ${report.warnings.length}`)
+    toast.display(
+      `验证${status} · 错误: ${report.errors.length} · 警告: ${report.warnings.length}`,
+      report.passed ? 'success' : 'error',
+      6000
+    )
   }
 }
 </script>

@@ -21,6 +21,15 @@ export interface CreateProjectRequest {
   output_dir: string;
 }
 
+export interface UpdateProjectRequest {
+  name: string;
+  version: string;
+  supported_version: string;
+  tags: string[];
+  author?: string;
+  output_dir: string;
+}
+
 export const useProjectStore = defineStore("project", () => {
   const projects = ref<Project[]>([]);
   const currentProject = ref<Project | null>(null);
@@ -32,6 +41,18 @@ export const useProjectStore = defineStore("project", () => {
   async function createProject(req: CreateProjectRequest) {
     const p = await invokeCommand<Project>("create_project", { req });
     projects.value.unshift(p);
+    return p;
+  }
+
+  async function updateProject(id: string, req: UpdateProjectRequest) {
+    const p = await invokeCommand<Project>("update_project", { id, req });
+    const idx = projects.value.findIndex((proj) => proj.id === id);
+    if (idx !== -1) {
+      projects.value[idx] = p;
+    }
+    if (currentProject.value?.id === id) {
+      currentProject.value = p;
+    }
     return p;
   }
 
@@ -52,6 +73,7 @@ export const useProjectStore = defineStore("project", () => {
     currentProject,
     loadProjects,
     createProject,
+    updateProject,
     deleteProject,
     setCurrentProject,
   };

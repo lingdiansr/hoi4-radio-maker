@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **⚠️ 代码演进说明**：音频库架构已经过重构，从「项目级音频库」演进为「全局音频库 + 项目引用」。设计规格文档 `specs/2026-06-12-hoi4radio-design.md` 已同步更新；本实施计划中的 Task 4 代码示例仍保留原始写法，实际实现以源码为准。
+
 **Goal:** Build a cross-platform Tauri desktop app for creating Hearts of Iron IV radio/music mods, supporting project management, audio library, multi-station editing, and one-click mod generation.
 
 **Architecture:** Rust backend owns all domain logic (project persistence via SQLite, audio analysis/transcoding via ffmpeg/ffprobe, HOI4 file generation, validation); Vue 3 frontend provides the GUI and communicates through Tauri commands. The project follows a modular Rust layout matching hoi4skill-cli's style.
@@ -583,6 +585,16 @@ git commit -m "feat: add SQLite database layer and project CRUD"
 ---
 
 ## Task 4: Audio Import and Metadata Extraction
+
+**重要变更（重构后）**：音频库已改为**全局音频库 + 项目引用**架构：
+
+- `audio_files` 表不再有 `project_id` 外键；新增 `source_hash`（BLAKE3，唯一索引）和 `created_at` / `updated_at`。
+- 新增 `project_audio_files` 关联表，表示项目引用了哪些音频。
+- 转码后的 `.ogg` 存储在应用数据目录 `hoi4-radio-maker/audio/`，而非项目输出目录。
+- 生成 Mod 时，从全局音频仓复制项目引用的 `.ogg` 到输出目录的 `music/`。
+- 导入支持批量，并发计算哈希（并发度 `import_concurrency`，默认 8），并发转码（默认 `import_concurrency / 2`）。
+- 已导入文件再次导入时直接建立引用，不重复转码。
+
 
 **Files:**
 - Create: `src-tauri/src/audio.rs`

@@ -3,6 +3,7 @@ pub mod audio_repo;
 pub mod commands;
 pub mod db;
 pub mod error;
+pub mod ffmpeg_finder;
 pub mod generator;
 pub mod models;
 pub mod settings;
@@ -60,10 +61,12 @@ pub fn run() {
             commands::create_project,
             commands::list_projects,
             commands::get_project,
+            commands::update_project,
             commands::delete_project,
             commands::list_audio_files,
+            commands::list_all_audio_files,
             commands::delete_audio_file,
-            commands::import_audio,
+            commands::import_audio_batch,
             commands::list_stations,
             commands::create_station,
             commands::add_station_entry,

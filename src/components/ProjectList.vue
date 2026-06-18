@@ -48,33 +48,121 @@
       </v-list-item>
     </v-list>
 
-    <v-dialog v-model="showDialog" max-width="520" class="bureau-dialog">
-      <v-card>
-        <v-card-title class="text-display text-h5 pa-6 pb-2">新建广播项目</v-card-title>
+    <v-spacer />
+
+    <div class="sidebar-footer pa-4">
+      <v-btn
+        variant="text"
+        prepend-icon="mdi-cog"
+        class="settings-link w-100 justify-start"
+        @click="router.push('/settings')"
+      >
+        全局设置
+      </v-btn>
+    </div>
+
+    <!-- Create Project Dialog -->
+    <v-dialog v-model="showDialog" max-width="560" class="bureau-dialog" persistent>
+      <v-card class="dialog-card">
+        <div class="dialog-accent" />
+        <v-card-title class="dialog-title pa-6 pb-2">
+          <div class="d-flex align-center gap-3">
+            <v-icon color="primary" size="28">mdi-radio-tower</v-icon>
+            <div>
+              <div class="text-mono text-caption text-secondary">NEW BROADCAST</div>
+              <div class="text-display text-h5">新建广播项目</div>
+            </div>
+          </div>
+        </v-card-title>
+
         <v-card-text class="pa-6 pt-4">
-          <v-text-field v-model="form.name" label="项目名称" placeholder="例如：东方之声" />
-          <v-text-field v-model="form.version" label="Mod 版本" />
-          <v-text-field v-model="form.supported_version" label="支持的游戏版本" />
-          <v-text-field v-model="form.output_dir" label="输出目录" placeholder="/path/to/mod/output" />
+          <v-text-field
+            v-model="form.name"
+            label="项目名称"
+            placeholder="例如：东方之声"
+            prepend-inner-icon="mdi-form-textbox"
+            class="mb-4"
+            hide-details="auto"
+            :rules="[required]"
+          />
+          <v-row class="mb-2">
+            <v-col cols="6">
+              <v-text-field
+                v-model="form.version"
+                label="Mod 版本"
+                placeholder="0.1.0"
+                prepend-inner-icon="mdi-tag-outline"
+                hide-details="auto"
+                :rules="[required]"
+              />
+            </v-col>
+            <v-col cols="6">
+              <v-text-field
+                v-model="form.supported_version"
+                label="支持的游戏版本"
+                placeholder="*"
+                prepend-inner-icon="mdi-gamepad-variant-outline"
+                hide-details="auto"
+                :rules="[required]"
+              />
+            </v-col>
+          </v-row>
+          <PathField
+            v-model="form.output_dir"
+            label="输出目录"
+            placeholder="选择 Mod 输出目录"
+            prepend-inner-icon="mdi-folder-open"
+            picker-mode="directory"
+            class="mb-4"
+            :rules="[required]"
+          />
+          <v-text-field
+            v-model="form.author"
+            label="作者"
+            placeholder="可选"
+            prepend-inner-icon="mdi-account"
+            hide-details="auto"
+          />
         </v-card-text>
-        <v-card-actions class="pa-6 pt-0">
+
+        <v-divider opacity="0.2" />
+
+        <v-card-actions class="pa-6">
           <v-spacer />
-          <v-btn variant="text" @click="showDialog = false">取消</v-btn>
-          <v-btn color="primary" @click="handleCreate">创建</v-btn>
+          <v-btn variant="text" class="action-btn" @click="showDialog = false">取消</v-btn>
+          <v-btn color="primary" class="action-btn" prepend-icon="mdi-check-circle" @click="handleCreate">
+            创建
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showDeleteDialog" max-width="400">
-      <v-card>
-        <v-card-title class="text-display text-h6 pa-6 pb-2">确认删除</v-card-title>
-        <v-card-text class="pa-6 pt-4">
-          确定要删除项目 <strong>{{ projectToDelete?.name }}</strong> 吗？此操作不会删除输出目录中的文件。
+    <!-- Delete Confirmation Dialog -->
+    <v-dialog v-model="showDeleteDialog" max-width="420" class="bureau-dialog">
+      <v-card class="dialog-card">
+        <div class="dialog-accent dialog-accent--danger" />
+        <v-card-title class="dialog-title pa-6 pb-2">
+          <div class="d-flex align-center gap-3">
+            <v-icon color="error" size="28">mdi-alert-circle</v-icon>
+            <div>
+              <div class="text-mono text-caption text-secondary">CONFIRM DELETION</div>
+              <div class="text-display text-h5">确认删除</div>
+            </div>
+          </div>
+        </v-card-title>
+
+        <v-card-text class="pa-6 pt-4 text-body-1">
+          确定要删除项目 <strong class="text-primary">{{ projectToDelete?.name }}</strong> 吗？此操作不会删除输出目录中的文件。
         </v-card-text>
-        <v-card-actions class="pa-6 pt-0">
+
+        <v-divider opacity="0.2" />
+
+        <v-card-actions class="pa-6">
           <v-spacer />
-          <v-btn variant="text" @click="showDeleteDialog = false">取消</v-btn>
-          <v-btn color="error" @click="handleDelete">删除</v-btn>
+          <v-btn variant="text" class="action-btn" @click="showDeleteDialog = false">取消</v-btn>
+          <v-btn color="error" class="action-btn" prepend-icon="mdi-delete-outline" @click="handleDelete">
+            删除
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -85,9 +173,11 @@
 import { ref, onMounted, reactive, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjectStore, type Project } from '@/stores/project'
+import PathField from '@/components/PathField.vue'
+
+const router = useRouter()
 
 const projectStore = useProjectStore()
-const router = useRouter()
 const showDialog = ref(false)
 const showDeleteDialog = ref(false)
 const projectToDelete = ref<Project | null>(null)
@@ -96,7 +186,12 @@ const form = reactive({
   version: '0.1.0',
   supported_version: '*',
   output_dir: '',
+  author: '',
 })
+
+function required(v: string) {
+  return !!v || '此项为必填'
+}
 
 onMounted(() => {
   projectStore.loadProjects()
@@ -112,10 +207,11 @@ function openCreateDialog() {
 }
 
 async function handleCreate() {
+  if (!form.name || !form.version || !form.supported_version || !form.output_dir) return
   const p = await projectStore.createProject({
     ...form,
     tags: ['Sound'],
-    author: undefined,
+    author: form.author.trim() || undefined,
   })
   if (p) {
     showDialog.value = false
@@ -162,7 +258,9 @@ function formatDate(path: string) {
 }
 
 .project-list-items {
+  flex: 1 1 auto;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .project-item {
@@ -195,7 +293,50 @@ function formatDate(path: string) {
   opacity: 0.6;
 }
 
-.bureau-dialog :deep(.v-overlay__scrim) {
-  background: rgba(18, 16, 14, 0.8);
+.sidebar-footer {
+  border-top: 1px solid rgba(74, 66, 56, 0.4);
+  margin-top: auto;
+}
+
+.settings-link {
+  color: #c4b5a0;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  justify-content: flex-start;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.settings-link:hover {
+  color: #ffb020;
+  background: rgba(255, 176, 32, 0.08);
+}
+
+.dialog-card {
+  background: #1a1714;
+  border: 1px solid rgba(74, 66, 56, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+
+.dialog-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ffb020 0%, rgba(255, 176, 32, 0.3) 100%);
+}
+
+.dialog-accent--danger {
+  background: linear-gradient(90deg, #ff8a80 0%, rgba(255, 138, 128, 0.3) 100%);
+}
+
+.dialog-title {
+  padding-top: 28px;
+}
+
+.action-btn {
+  text-transform: none;
+  letter-spacing: 0.02em;
 }
 </style>

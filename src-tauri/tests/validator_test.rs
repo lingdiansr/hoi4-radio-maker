@@ -9,6 +9,8 @@ use hoi4_radio_maker_lib::validator::validate_mod_output;
 async fn test_validate_generated_mod_reports_missing_ogg() {
     let temp = tempfile::tempdir().expect("failed to create temp dir");
     let output_dir = temp.path().join("mod").join("val_radio");
+    let audio_store_dir = temp.path().join("audio_store");
+    std::fs::create_dir_all(&audio_store_dir).unwrap();
 
     let project = Project {
         id: "val_radio".to_string(),
@@ -22,8 +24,10 @@ async fn test_validate_generated_mod_reports_missing_ogg() {
         updated_at: Utc::now(),
     };
 
+    let now = Utc::now();
     let audio_files = vec![AudioFile {
         id: "missing_song".to_string(),
+        source_hash: "hash_missing".to_string(),
         title: "Missing Song".to_string(),
         artist: None,
         source_path: PathBuf::from("/fake/missing_song.ogg"),
@@ -34,6 +38,8 @@ async fn test_validate_generated_mod_reports_missing_ogg() {
         volume: 0.65,
         tags: vec![],
         notes: None,
+        created_at: now,
+        updated_at: now,
     }];
 
     let station = Station {
@@ -48,7 +54,7 @@ async fn test_validate_generated_mod_reports_missing_ogg() {
         }],
     };
 
-    generate_mod(&project, &[station], &audio_files, &output_dir)
+    generate_mod(&project, &[station], &audio_files, &output_dir, &audio_store_dir)
         .expect("generate_mod failed");
 
     let report = validate_mod_output(&output_dir)
@@ -69,6 +75,8 @@ async fn test_validate_generated_mod_reports_missing_ogg() {
 async fn test_validate_complete_mod_reports_ogg_decode_error() {
     let temp = tempfile::tempdir().expect("failed to create temp dir");
     let output_dir = temp.path().join("mod").join("complete_radio");
+    let audio_store_dir = temp.path().join("audio_store");
+    std::fs::create_dir_all(&audio_store_dir).unwrap();
 
     let project = Project {
         id: "complete_radio".to_string(),
@@ -82,8 +90,10 @@ async fn test_validate_complete_mod_reports_ogg_decode_error() {
         updated_at: Utc::now(),
     };
 
+    let now = Utc::now();
     let audio_files = vec![AudioFile {
         id: "dummy_song".to_string(),
+        source_hash: "hash_dummy".to_string(),
         title: "Dummy Song".to_string(),
         artist: None,
         source_path: PathBuf::from("/fake/dummy_song.ogg"),
@@ -94,7 +104,11 @@ async fn test_validate_complete_mod_reports_ogg_decode_error() {
         volume: 0.65,
         tags: vec![],
         notes: None,
+        created_at: now,
+        updated_at: now,
     }];
+
+    std::fs::write(audio_store_dir.join("dummy_song.ogg"), b"").unwrap();
 
     let station = Station {
         id: "complete_station".to_string(),
@@ -108,7 +122,7 @@ async fn test_validate_complete_mod_reports_ogg_decode_error() {
         }],
     };
 
-    generate_mod(&project, &[station], &audio_files, &output_dir)
+    generate_mod(&project, &[station], &audio_files, &output_dir, &audio_store_dir)
         .expect("generate_mod failed");
 
     // Create an empty dummy OGG file; ffprobe will report it as not decodable.

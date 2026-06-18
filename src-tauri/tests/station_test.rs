@@ -1,3 +1,4 @@
+use chrono::Utc;
 use hoi4_radio_maker_lib::db::Db;
 use hoi4_radio_maker_lib::models::{AudioFile, ChanceConfig, CreateProjectRequest};
 use hoi4_radio_maker_lib::station::StationRepository;
@@ -20,8 +21,10 @@ fn test_station_lifecycle() {
         })
         .unwrap();
 
+    let now = Utc::now();
     let audio = AudioFile {
         id: "song_001".into(),
+        source_hash: "abc123".into(),
         title: "Test Song".into(),
         artist: None,
         source_path: PathBuf::from("/tmp/test.mp3"),
@@ -32,8 +35,11 @@ fn test_station_lifecycle() {
         volume: 0.75,
         tags: vec![],
         notes: None,
+        created_at: now,
+        updated_at: now,
     };
-    db.create_audio_file(&project.id, &audio).unwrap();
+    db.create_audio_file(&audio).unwrap();
+    db.add_audio_to_project(&project.id, &audio.id).unwrap();
 
     let repo = StationRepository::new(&db);
 

@@ -19,9 +19,22 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
+import { invokeCommand, isAppError } from '@/api/client'
 import { useToastStore } from '@/stores/toast'
 
 const toast = useToastStore()
+
+onMounted(async () => {
+  try {
+    await invokeCommand('get_settings')
+  } catch (err) {
+    if (isAppError(err) && err.type === 'ffmpeg_not_found') {
+      toast.display(err.message, 'error', 8000)
+    }
+    // Other settings errors are not critical on startup.
+  }
+})
 </script>
 
 <style>
@@ -89,6 +102,17 @@ const toast = useToastStore()
 
 .bureau-snackbar .v-snackbar__content {
   font-family: var(--font-body);
+}
+
+.bureau-dialog .v-overlay__scrim {
+  background: rgba(18, 16, 14, 0.85);
+  backdrop-filter: blur(2px);
+}
+
+.bureau-dialog .v-overlay__content {
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 176, 32, 0.08);
 }
 
 /* Custom scrollbar */

@@ -10,7 +10,7 @@
           color="primary"
           prepend-icon="mdi-plus"
           class="create-btn"
-          @click="createStation"
+          @click="openCreateDialog"
         >
           新建电台
         </v-btn>
@@ -23,7 +23,7 @@
           <v-icon size="64" color="secondary" class="mb-4">mdi-antenna</v-icon>
           <div class="text-body text-secondary text-h6 mb-2">暂无电台</div>
           <div class="text-body text-secondary mb-4">创建一个电台，然后从音频库添加歌曲</div>
-          <v-btn color="primary" prepend-icon="mdi-plus" @click="createStation">新建电台</v-btn>
+          <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateDialog">新建电台</v-btn>
         </div>
 
         <template v-else>
@@ -106,23 +106,78 @@
         </template>
       </v-card-text>
     </v-card>
+
+    <!-- Create Station Dialog -->
+    <v-dialog v-model="showCreateDialog" max-width="460" class="bureau-dialog">
+      <v-card class="dialog-card">
+        <div class="dialog-accent" />
+        <v-card-title class="dialog-title pa-6 pb-2">
+          <div class="d-flex align-center gap-3">
+            <v-icon color="primary" size="28">mdi-radio</v-icon>
+            <div>
+              <div class="text-mono text-caption text-secondary">NEW CHANNEL</div>
+              <div class="text-display text-h5">新建电台</div>
+            </div>
+          </div>
+        </v-card-title>
+
+        <v-card-text class="pa-6 pt-4">
+          <v-text-field
+            v-model="newStationName"
+            label="电台名称"
+            placeholder="例如：前线战报"
+            prepend-inner-icon="mdi-antenna"
+            hide-details="auto"
+            :rules="[required]"
+            @keyup.enter="createStation"
+          />
+        </v-card-text>
+
+        <v-divider opacity="0.2" />
+
+        <v-card-actions class="pa-6">
+          <v-spacer />
+          <v-btn variant="text" class="action-btn" @click="showCreateDialog = false">取消</v-btn>
+          <v-btn
+            color="primary"
+            class="action-btn"
+            prepend-icon="mdi-check-circle"
+            @click="createStation"
+          >
+            创建
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useStationStore } from '@/stores/station'
 import { useAudioStore } from '@/stores/audio'
 
+const route = useRoute()
 const stationStore = useStationStore()
 const audioStore = useAudioStore()
 const activeTab = ref<string>('')
 const selectedAudio = ref<string>('')
 const factor = ref<number>(1)
+const showCreateDialog = ref(false)
+const newStationName = ref('')
+
+const projectId = computed(() => route.params.id as string)
+
+function required(v: string) {
+  return !!v || '此项为必填'
+}
 
 onMounted(() => {
   stationStore.loadStations()
-  audioStore.loadAudio()
+  if (projectId.value) {
+    audioStore.loadAudio(projectId.value)
+  }
 })
 
 watch(
@@ -135,9 +190,17 @@ watch(
   { immediate: true }
 )
 
+function openCreateDialog() {
+  newStationName.value = ''
+  showCreateDialog.value = true
+}
+
 async function createStation() {
-  const name = prompt('电台名称') || 'New Station'
+  const name = newStationName.value.trim()
+  if (!name) return
   await stationStore.createStation(name)
+  showCreateDialog.value = false
+  newStationName.value = ''
 }
 
 async function addEntry(stationId: string) {
@@ -192,5 +255,30 @@ async function removeEntry(stationId: string, audioFileId: string) {
 .empty-state {
   border: 2px dashed rgba(74, 66, 56, 0.6);
   border-radius: 16px;
+}
+
+.dialog-card {
+  background: #1a1714;
+  border: 1px solid rgba(74, 66, 56, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+
+.dialog-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ffb020 0%, rgba(255, 176, 32, 0.3) 100%);
+}
+
+.dialog-title {
+  padding-top: 28px;
+}
+
+.action-btn {
+  text-transform: none;
+  letter-spacing: 0.02em;
 }
 </style>

@@ -9,6 +9,7 @@ pub struct Settings {
     pub ffprobe_path: Option<String>,
     pub hoi4_game_dir: Option<String>,
     pub theme: String,
+    pub import_concurrency: u32,
 }
 
 impl Default for Settings {
@@ -18,6 +19,7 @@ impl Default for Settings {
             ffprobe_path: None,
             hoi4_game_dir: None,
             theme: "dark".to_string(),
+            import_concurrency: 8,
         }
     }
 }

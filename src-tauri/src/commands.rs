@@ -1,12 +1,14 @@
-use crate::audio::transcode_to_ogg;
+use crate::audio::{analyze_audio, compute_file_hash, transcode_to_ogg};
 use crate::audio_repo::AudioRepository;
-use crate::db::Db;
+use crate::db::{BatchImportResult, Db};
 use crate::error::{Hoi4RadioError, Result};
 use crate::generator::generate_mod;
-use crate::models::{AudioFile, CreateProjectRequest, Project};
+use crate::models::{AudioFile, CreateProjectRequest, Project, UpdateProjectRequest};
 use crate::settings::Settings;
 use crate::station::StationRepository;
 use crate::validator::validate_mod_output;
+use chrono::Utc;
+use futures::stream::{StreamExt, TryStreamExt};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::State;
@@ -42,6 +44,16 @@ pub fn get_project(state: State<'_, AppState>, id: String) -> Result<Option<Proj
 }
 
 #[tauri::command]
+pub fn update_project(
+    state: State<'_, AppState>,
+    id: String,
+    req: UpdateProjectRequest,
+) -> Result<Project> {
+    let db = lock_db(&state)?;
+    db.update_project(&id, &req)
+}
+
+#[tauri::command]
 pub fn delete_project(state: State<'_, AppState>, id: String) -> Result<()> {
     let db = lock_db(&state)?;
     db.delete_project(&id)
@@ -54,60 +66,141 @@ pub fn list_audio_files(state: State<'_, AppState>, project_id: String) -> Resul
 }
 
 #[tauri::command]
+pub fn list_all_audio_files(state: State<'_, AppState>) -> Result<Vec<AudioFile>> {
+    let db = lock_db(&state)?;
+    AudioRepository::new(&db).list_all()
+}
+
+#[tauri::command]
 pub fn delete_audio_file(state: State<'_, AppState>, id: String) -> Result<()> {
     let db = lock_db(&state)?;
     AudioRepository::new(&db).delete(&id)
 }
 
+/// Batch import audio files into the global library and add them to a project.
 #[tauri::command]
-pub async fn import_audio(
+pub async fn import_audio_batch(
     state: State<'_, AppState>,
     project_id: String,
-    path: String,
-) -> Result<AudioFile> {
-    let source_path = PathBuf::from(&path);
+    paths: Vec<String>,
+) -> Result<BatchImportResult> {
+    if paths.is_empty() {
+        return Ok(BatchImportResult {
+            created: vec![],
+            existing: vec![],
+        });
+    }
 
-    // Resolve the project's output directory before any await point.
-    let output_dir = {
+    // Resolve project and settings before any await point.
+    let (settings, audio_store_dir) = {
         let db = lock_db(&state)?;
-        match db.get_project(&project_id)? {
-            Some(project) => project.output_dir,
-            None => return Err(Hoi4RadioError::ProjectNotFound { id: project_id }),
+        if db.get_project(&project_id)?.is_none() {
+            return Err(Hoi4RadioError::ProjectNotFound { id: project_id });
         }
+        let settings = Settings::get(&db)?;
+        let app_dir = dirs::data_dir()
+            .ok_or_else(|| Hoi4RadioError::Other {
+                message: "could not determine application data directory".to_string(),
+            })?
+            .join("hoi4-radio-maker")
+            .join("audio");
+        (settings, app_dir)
     };
 
-    let metadata = crate::audio::analyze_audio(&source_path).await?;
+    let ffmpeg_path = settings.ffmpeg_path.as_deref();
+    let ffprobe_path = settings.ffprobe_path.as_deref();
+    let hash_concurrency = settings.import_concurrency.max(1) as usize;
+    let transcode_concurrency = (hash_concurrency / 2).max(1);
 
-    let id = format!("audio_{}", Uuid::new_v4().to_string().replace('-', ""));
-    let ogg_filename = format!("{}.ogg", id);
-    let music_dir = output_dir.join("music");
-    std::fs::create_dir_all(&music_dir)?;
-    let ogg_path = music_dir.join(&ogg_filename);
+    // Ensure the global audio store exists.
+    tokio::fs::create_dir_all(&audio_store_dir).await?;
 
-    transcode_to_ogg(&source_path, &ogg_path).await?;
+    // 1. Compute hashes concurrently.
+    let hashed = futures::stream::iter(paths)
+        .map(|path| {
+            let path = PathBuf::from(path);
+            async move {
+                let hash = compute_file_hash(&path).await?;
+                Ok::<_, Hoi4RadioError>((path, hash))
+            }
+        })
+        .buffer_unordered(hash_concurrency)
+        .try_collect::<Vec<_>>()
+        .await?;
 
-    let title = source_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| id.clone());
+    // 2. Check database for existing files and split into new/existing.
+    let mut existing: Vec<AudioFile> = Vec::new();
+    let mut to_transcode: Vec<(PathBuf, String)> = Vec::new();
+    {
+        let db = lock_db(&state)?;
+        let repo = AudioRepository::new(&db);
+        for (path, hash) in hashed {
+            let existing_audio = repo.get_by_hash(&hash)?;
+            match existing_audio {
+                Some(audio) => existing.push(audio),
+                None => to_transcode.push((path, hash)),
+            }
+        }
+    }
 
-    let audio = AudioFile {
-        id: id.clone(),
-        title,
-        artist: None,
-        source_path: source_path.clone(),
-        ogg_filename,
-        duration_secs: metadata.duration_secs,
-        sample_rate: metadata.sample_rate,
-        channels: metadata.channels,
-        volume: 0.75,
-        tags: vec![],
-        notes: None,
-    };
+    // 3. Transcode new files concurrently with limited ffmpeg processes.
+    let transcoded = futures::stream::iter(to_transcode)
+        .map(|(source_path, source_hash)| {
+            let audio_store_dir = audio_store_dir.clone();
+            async move {
+                let metadata = analyze_audio(&source_path, ffprobe_path).await?;
+                let id = format!("audio_{}", Uuid::new_v4().to_string().replace('-', ""));
+                let ogg_filename = format!("{}.ogg", id);
+                let ogg_path = audio_store_dir.join(&ogg_filename);
 
-    let db = lock_db(&state)?;
-    AudioRepository::new(&db).create(&project_id, &audio)
+                transcode_to_ogg(&source_path, &ogg_path, ffmpeg_path).await?;
+
+                let title = source_path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| id.clone());
+
+                let now = Utc::now();
+                let audio = AudioFile {
+                    id,
+                    source_hash,
+                    title,
+                    artist: None,
+                    source_path: source_path.clone(),
+                    ogg_filename,
+                    duration_secs: metadata.duration_secs,
+                    sample_rate: metadata.sample_rate,
+                    channels: metadata.channels,
+                    volume: 0.75,
+                    tags: vec![],
+                    notes: None,
+                    created_at: now,
+                    updated_at: now,
+                };
+
+                Ok::<_, Hoi4RadioError>(audio)
+            }
+        })
+        .buffer_unordered(transcode_concurrency)
+        .try_collect::<Vec<_>>()
+        .await?;
+
+    // 4. Persist everything and create project references.
+    let mut created = Vec::new();
+    {
+        let db = lock_db(&state)?;
+        let repo = AudioRepository::new(&db);
+        for audio in transcoded {
+            repo.create(&audio)?;
+            created.push(audio);
+        }
+        for audio in existing.iter().chain(created.iter()) {
+            repo.add_to_project(&project_id, &audio.id)?;
+        }
+    }
+
+    Ok(BatchImportResult { created, existing })
 }
 
 #[tauri::command]
@@ -163,7 +256,20 @@ pub fn generate_project_mod(state: State<'_, AppState>, project_id: String) -> R
     let stations = StationRepository::new(&db).list_by_project(&project_id)?;
     let audio_files = AudioRepository::new(&db).list(&project_id)?;
 
-    generate_mod(&project, &stations, &audio_files, &project.output_dir)?;
+    let audio_store_dir = dirs::data_dir()
+        .ok_or_else(|| Hoi4RadioError::Other {
+            message: "could not determine application data directory".to_string(),
+        })?
+        .join("hoi4-radio-maker")
+        .join("audio");
+
+    generate_mod(
+        &project,
+        &stations,
+        &audio_files,
+        &project.output_dir,
+        &audio_store_dir,
+    )?;
 
     Ok(project.output_dir.to_string_lossy().to_string())
 }
@@ -186,8 +292,25 @@ pub async fn validate_project_mod(
 
 #[tauri::command]
 pub fn get_settings(state: State<'_, AppState>) -> Result<Settings> {
+    use crate::ffmpeg_finder::detect_ffmpeg;
+
     let db = lock_db(&state)?;
-    Settings::get(&db)
+    let mut settings = Settings::get(&db)?;
+
+    // Auto-detect ffmpeg/ffprobe on first access if the user has not
+    // manually specified the paths.
+    if settings.ffmpeg_path.is_none() || settings.ffprobe_path.is_none() {
+        let (ffmpeg, ffprobe) = detect_ffmpeg()?;
+        settings.ffmpeg_path = settings.ffmpeg_path.or(ffmpeg);
+        settings.ffprobe_path = settings.ffprobe_path.or(ffprobe);
+        settings.save(&db)?;
+    }
+
+    if settings.ffmpeg_path.is_none() || settings.ffprobe_path.is_none() {
+        return Err(Hoi4RadioError::FfmpegNotFound);
+    }
+
+    Ok(settings)
 }
 
 #[tauri::command]

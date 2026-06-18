@@ -16,10 +16,11 @@ pub struct Project {
     pub updated_at: DateTime<Utc>,
 }
 
-/// An audio file in the project's audio library.
+/// An audio file in the global audio library.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioFile {
     pub id: String,
+    pub source_hash: String,
     pub title: String,
     pub artist: Option<String>,
     pub source_path: PathBuf,
@@ -30,6 +31,8 @@ pub struct AudioFile {
     pub volume: f64,
     pub tags: Vec<String>,
     pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 /// Metadata extracted from an audio file.
@@ -83,6 +86,17 @@ pub enum Trigger {
 /// Request payload for creating a new project.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateProjectRequest {
+    pub name: String,
+    pub version: String,
+    pub supported_version: String,
+    pub tags: Vec<String>,
+    pub author: Option<String>,
+    pub output_dir: PathBuf,
+}
+
+/// Request payload for updating an existing project.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateProjectRequest {
     pub name: String,
     pub version: String,
     pub supported_version: String,

@@ -2,6 +2,7 @@ use crate::error::{Hoi4RadioError, Result};
 use crate::models::AudioMetadata;
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
+use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 
 /// Output produced by `ffprobe -show_streams -show_format -print_format json`.
@@ -29,10 +30,14 @@ struct FfprobeFormat {
 ///
 /// Returns an `AudioAnalysis` error if ffprobe fails, the output cannot be
 /// parsed, or no audio stream is found.
-pub async fn analyze_audio<P: AsRef<Path>>(path: P) -> Result<AudioMetadata> {
+pub async fn analyze_audio<P: AsRef<Path>>(
+    path: P,
+    ffprobe_path: Option<&str>,
+) -> Result<AudioMetadata> {
     let path = path.as_ref();
+    let binary = ffprobe_path.unwrap_or("ffprobe");
 
-    let output = Command::new("ffprobe")
+    let output = Command::new(binary)
         .args([
             "-v",
             "quiet",
@@ -46,7 +51,7 @@ pub async fn analyze_audio<P: AsRef<Path>>(path: P) -> Result<AudioMetadata> {
         .await
         .map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => Hoi4RadioError::AudioAnalysis {
-                message: "ffprobe not found in PATH. Please install ffmpeg and ensure ffprobe is available.".to_string(),
+                message: format!("{binary} not found. Please install ffmpeg or specify the path in settings."),
             },
             _ => Hoi4RadioError::Io {
                 message: e.to_string(),
@@ -56,7 +61,7 @@ pub async fn analyze_audio<P: AsRef<Path>>(path: P) -> Result<AudioMetadata> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(Hoi4RadioError::AudioAnalysis {
-            message: format!("ffprobe exited with status {:?}: {stderr}", output.status),
+            message: format!("{binary} exited with status {:?}: {stderr}", output.status),
         });
     }
 
@@ -102,11 +107,16 @@ pub async fn analyze_audio<P: AsRef<Path>>(path: P) -> Result<AudioMetadata> {
 ///
 /// The output is encoded at 44.1 kHz using libvorbis quality 4.
 /// Returns the output path, or a `Transcoding` error if ffmpeg fails.
-pub async fn transcode_to_ogg<P: AsRef<Path>, Q: AsRef<Path>>(input: P, output: Q) -> Result<PathBuf> {
+pub async fn transcode_to_ogg<P: AsRef<Path>, Q: AsRef<Path>>(
+    input: P,
+    output: Q,
+    ffmpeg_path: Option<&str>,
+) -> Result<PathBuf> {
     let input = input.as_ref();
     let output = output.as_ref();
+    let binary = ffmpeg_path.unwrap_or("ffmpeg");
 
-    let result = Command::new("ffmpeg")
+    let result = Command::new(binary)
         .args([
             "-y",
             "-i",
@@ -123,7 +133,7 @@ pub async fn transcode_to_ogg<P: AsRef<Path>, Q: AsRef<Path>>(input: P, output: 
         .await
         .map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => Hoi4RadioError::Transcoding {
-                message: "ffmpeg not found in PATH. Please install ffmpeg and ensure ffmpeg is available.".to_string(),
+                message: format!("{binary} not found. Please install ffmpeg or specify the path in settings."),
             },
             _ => Hoi4RadioError::Io {
                 message: e.to_string(),
@@ -133,9 +143,32 @@ pub async fn transcode_to_ogg<P: AsRef<Path>, Q: AsRef<Path>>(input: P, output: 
     if !result.status.success() {
         let stderr = String::from_utf8_lossy(&result.stderr);
         return Err(Hoi4RadioError::Transcoding {
-            message: format!("ffmpeg exited with status {:?}: {stderr}", result.status),
+            message: format!("{binary} exited with status {:?}: {stderr}", result.status),
         });
     }
 
     Ok(output.to_path_buf())
+}
+
+/// Compute a BLAKE3 hash of a file's contents.
+pub async fn compute_file_hash<P: AsRef<Path>>(path: P) -> Result<String> {
+    let path = path.as_ref();
+    let mut file = tokio::fs::File::open(path).await.map_err(|e| Hoi4RadioError::Io {
+        message: format!("failed to open {}: {e}", path.display()),
+    })?;
+
+    let mut hasher = blake3::Hasher::new();
+    let mut buffer = vec![0u8; 64 * 1024];
+
+    loop {
+        let n = file.read(&mut buffer).await.map_err(|e| Hoi4RadioError::Io {
+            message: format!("failed to read {}: {e}", path.display()),
+        })?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buffer[..n]);
+    }
+
+    Ok(hasher.finalize().to_hex().to_string())
 }

@@ -49,11 +49,15 @@
 - 项目元数据编辑
 
 #### 音频库
-- 导入本地音频文件（支持 mp3 / wav / flac / ogg）
-- 自动转码为 Ogg Vorbis（44.1 kHz，立体声/单声道）
-- 读取并显示音频元数据：时长、采样率、声道数、文件大小
+- **全局音频库**：所有导入的音频文件进入全局仓库，按文件内容哈希（BLAKE3）去重
+- 导入本地音频文件（支持 mp3 / wav / flac / ogg / m4a / aac / wma）
+- 批量导入，并发计算哈希（并发度可配置，默认 8）
+- 自动转码为 Ogg Vorbis（44.1 kHz，立体声/单声道），并发转码（默认 `concurrency / 2`）
+- 已导入的音频再次导入时直接建立项目引用，不重复转码
+- 读取并显示音频元数据：时长、采样率、声道数
 - 编辑歌曲元数据：ID、标题、艺术家、音量、标签、注释
-- 音频库搜索与筛选
+- 项目通过 `project_audio_files` 引用全局音频库中的歌曲
+- 删除项目仅移除引用；删除全局音频需确保无项目引用
 
 #### 电台编辑
 - 一个项目支持多个电台（music station）
@@ -82,9 +86,10 @@
 - 检查 ID 命名合法（英文、数字、下划线）
 
 #### 设置
-- ffmpeg / ffprobe 路径配置
+- ffmpeg / ffprobe 路径配置（启动时自动探测）
 - HOI4 游戏目录配置（用于高级验证，可选）
 - 主题切换（暗色/亮色）
+- 导入并发数（1–16，默认 8）
 
 ### 3.2 Should Have（建议实现）
 
@@ -151,20 +156,23 @@ pub struct Project {
     pub updated_at: DateTime<Utc>,
 }
 
-/// 音频库中的单个音频文件
+/// 全局音频库中的单个音频文件
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioFile {
     pub id: String,
+    pub source_hash: String,      // BLAKE3 哈希，用于去重
     pub title: String,
     pub artist: Option<String>,
-    pub source_path: PathBuf,
-    pub ogg_filename: String,
+    pub source_path: PathBuf,     // 原始文件路径，仅作展示
+    pub ogg_filename: String,     // 转码后 OGG 在全局音频仓中的文件名
     pub duration_secs: f64,
     pub sample_rate: u32,
     pub channels: u32,
     pub volume: f64,
     pub tags: Vec<String>,
     pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 /// 电台
@@ -210,6 +218,16 @@ pub enum Trigger {
 
 ### 4.3 输出文件结构
 
+全局音频仓（应用数据目录）：
+
+```
+hoi4-radio-maker/
+└── audio/
+    ├── audio_<uuid_1>.ogg
+    ├── audio_<uuid_2>.ogg
+    └── audio_<uuid_3>.ogg
+```
+
 生成后的 Mod 目录示例：
 
 ```
@@ -221,9 +239,9 @@ my_radio_mod/
 │   ├── station_main.txt
 │   ├── station_war.asset
 │   ├── station_war.txt
-│   ├── song_001.ogg
-│   ├── song_002.ogg
-│   └── song_003.ogg
+│   ├── audio_<uuid_1>.ogg
+│   ├── audio_<uuid_2>.ogg
+│   └── audio_<uuid_3>.ogg
 └── localisation/
     └── simp_chinese/
         └── my_radio_mod_music_l_simp_chinese.yml
@@ -287,11 +305,14 @@ l_simp_chinese:
 
 ### 5.1 导入音频
 
-1. 用户选择文件或拖拽文件到音频库
-2. Rust 调用 `ffprobe -v quiet -print_format json -show_streams <file>` 读取元数据
-3. 生成唯一 ID（如 `song_<timestamp>_<hash>`）
-4. 保存原始文件路径和元数据到 SQLite
-5. （可选）立即调用 ffmpeg 转码为 `.ogg`；或延迟到生成 Mod 时
+1. 用户在项目中批量选择音频文件
+2. 后端并发计算每个文件的 BLAKE3 `source_hash`（并发度 = `import_concurrency`，默认 8）
+3. 按 `source_hash` 查询全局音频库：
+   - 已存在：仅建立 `project_audio_files` 引用，不重复转码
+   - 新文件：进入转码队列
+4. 并发调用 ffmpeg 转码为 Ogg Vorbis（并发度 = `import_concurrency / 2`，默认 4）
+5. 转码后的 `.ogg` 保存到应用数据目录下的全局音频仓（`hoi4-radio-maker/audio/`）
+6. 将新音频记录写入 `audio_files`，并为当前项目建立引用
 
 ### 5.2 编辑电台
 
@@ -307,7 +328,7 @@ l_simp_chinese:
 2. Rust 后端：
    - 清空或创建输出目录
    - 为每个电台生成 `.asset` 和 `.txt`
-   - 复制/转码所有需要的 `.ogg`
+   - 从全局音频仓复制项目引用的 `.ogg` 到输出目录的 `music/`
    - 生成本地化文件
    - 生成 `descriptor.mod` 和 `.mod`
 3. 返回生成结果摘要
@@ -368,21 +389,32 @@ CREATE TABLE projects (
     updated_at TEXT NOT NULL
 );
 
--- 音频文件表
+-- 全局音频文件表
 CREATE TABLE audio_files (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
+    source_hash TEXT NOT NULL UNIQUE,  -- BLAKE3 哈希，用于去重
     title TEXT NOT NULL,
     artist TEXT,
     source_path TEXT NOT NULL,
-    ogg_filename TEXT NOT NULL,
+    ogg_filename TEXT NOT NULL UNIQUE,
     duration_secs REAL,
     sample_rate INTEGER,
     channels INTEGER,
     volume REAL NOT NULL DEFAULT 0.75,
     tags TEXT NOT NULL DEFAULT '[]',
     notes TEXT,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+-- 项目与音频的引用关系
+CREATE TABLE project_audio_files (
+    project_id TEXT NOT NULL,
+    audio_file_id TEXT NOT NULL,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, audio_file_id),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (audio_file_id) REFERENCES audio_files(id) ON DELETE CASCADE
 );
 
 -- 电台表

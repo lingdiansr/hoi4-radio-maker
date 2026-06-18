@@ -12,11 +12,15 @@ use crate::models::{AudioFile, ChanceConfig, Project, Station, Trigger};
 /// clears any previous content, writes the descriptor and launcher files,
 /// generates station `.asset` / `.txt` files under `music/`, and emits the
 /// localisation YAML under `localisation/simp_chinese/`.
+///
+/// `audio_store_dir` is the global directory where transcoded OGG files are
+/// stored; referenced files are copied into the project's `music/` folder.
 pub fn generate_mod(
     project: &Project,
     stations: &[Station],
     audio_files: &[AudioFile],
     output_dir: &Path,
+    audio_store_dir: &Path,
 ) -> Result<()> {
     // 1. Create/clear output_dir (the mod root directory).
     if output_dir.exists() {
@@ -30,9 +34,17 @@ pub fn generate_mod(
     // 3. Write launcher .mod file next to the mod folder.
     write_launcher_mod(project, output_dir)?;
 
-    // 4. Create music/ subdirectory.
+    // 4. Create music/ subdirectory and copy referenced OGG files.
     let music_dir = output_dir.join("music");
     fs::create_dir_all(&music_dir)?;
+
+    for audio in audio_files {
+        let src = audio_store_dir.join(&audio.ogg_filename);
+        let dst = music_dir.join(&audio.ogg_filename);
+        if src.exists() {
+            fs::copy(&src, &dst)?;
+        }
+    }
 
     // Build a lookup map for audio files.
     let audio_map: HashMap<&str, &AudioFile> =

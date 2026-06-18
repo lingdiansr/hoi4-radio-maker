@@ -29,6 +29,9 @@ pub enum Hoi4RadioError {
     #[error("Validation failed: {message}")]
     Validation { message: String },
 
+    #[error("ffmpeg / ffprobe not found. Please install ffmpeg or specify paths manually in settings.")]
+    FfmpegNotFound,
+
     #[error("{message}")]
     Other { message: String },
 }
