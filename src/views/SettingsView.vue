@@ -90,14 +90,48 @@
         </v-row>
       </v-card-text>
     </v-card>
+
+    <v-card class="settings-card mt-6" variant="elevated" rounded="xl">
+      <v-card-title class="pa-6 pb-2">
+        <div class="text-mono text-caption text-secondary mb-1">DIAGNOSTICS</div>
+        <div class="text-display text-h5">日志与诊断</div>
+      </v-card-title>
+
+      <v-divider opacity="0.2" />
+
+      <v-card-text class="pa-6">
+        <div class="text-body text-secondary mb-4">
+          日志文件保存在应用日志目录中，遇到问题时可用于排查。当前日志级别：Info。
+        </div>
+        <div class="d-flex gap-3 flex-wrap">
+          <v-btn
+            color="primary"
+            prepend-icon="mdi-folder-open-outline"
+            @click="openLogFolder"
+          >
+            打开日志文件夹
+          </v-btn>
+          <v-btn
+            variant="outlined"
+            prepend-icon="mdi-content-copy"
+            @click="copyLogPath"
+          >
+            复制日志路径
+          </v-btn>
+        </div>
+      </v-card-text>
+    </v-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { appLogDir } from '@tauri-apps/api/path'
+import { openPath } from '@tauri-apps/plugin-opener'
 import { invokeCommand } from '@/api/client'
 import { useCommand } from '@/composables/useCommand'
+import { logger } from '@/utils/logger'
 import PathField from '@/components/PathField.vue'
 
 const router = useRouter()
@@ -153,6 +187,26 @@ onMounted(async () => {
 
 async function save() {
   await run('save_settings', { settings }, { successMsg: '设置已保存' })
+}
+
+async function openLogFolder() {
+  try {
+    const dir = await appLogDir()
+    await openPath(dir)
+    logger.info(`Opened log folder: ${dir}`)
+  } catch (err) {
+    logger.error(`Failed to open log folder: ${err}`)
+  }
+}
+
+async function copyLogPath() {
+  try {
+    const dir = await appLogDir()
+    await navigator.clipboard.writeText(dir)
+    logger.info(`Copied log path: ${dir}`)
+  } catch (err) {
+    logger.error(`Failed to copy log path: ${err}`)
+  }
 }
 </script>
 
