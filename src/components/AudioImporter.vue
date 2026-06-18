@@ -10,17 +10,51 @@
       {{ buttonLabel }}
     </v-btn>
 
-    <div v-if="audioStore.importing" class="progress-wrap mt-3">
-      <v-progress-linear color="primary" height="6" rounded indeterminate />
-      <div class="text-mono text-caption text-secondary mt-1">正在导入…</div>
-    </div>
+    <v-expand-transition>
+      <div v-if="audioStore.importing" class="progress-wrap mt-3">
+        <v-progress-linear color="primary" height="6" rounded indeterminate />
+        <div class="text-mono text-caption text-secondary mt-1">正在导入…</div>
+      </div>
+    </v-expand-transition>
+
+    <v-expand-transition>
+      <div v-if="result" class="result-wrap mt-3">
+        <v-alert
+          type="success"
+          variant="tonal"
+          density="compact"
+          rounded="lg"
+          class="result-alert"
+          :icon="false"
+        >
+          <div class="d-flex align-center gap-3">
+            <v-icon color="success">mdi-check-circle</v-icon>
+            <div>
+              <div class="text-body font-weight-medium">导入完成</div>
+              <div class="text-mono text-caption text-secondary">
+                新增 {{ result.created.length }} 首 · 已存在 {{ result.existing.length }} 首
+              </div>
+            </div>
+            <v-spacer />
+            <v-btn
+              icon="mdi-close"
+              variant="text"
+              size="small"
+              density="compact"
+              @click="result = null"
+            />
+          </div>
+        </v-alert>
+      </div>
+    </v-expand-transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAudioStore } from '@/stores/audio'
+import type { BatchImportResult } from '@/stores/audio'
 
 const props = withDefaults(defineProps<{
   mode?: 'global' | 'project'
@@ -30,16 +64,18 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  (e: 'imported', result: { created: any[]; existing: any[] }): void
+  (e: 'imported', result: BatchImportResult): void
 }>()
 
 const audioStore = useAudioStore()
+const result = ref<BatchImportResult | null>(null)
 
 const buttonLabel = computed(() => {
   return props.mode === 'global' ? '导入到音频库' : '导入音频'
 })
 
 async function selectFiles() {
+  result.value = null
   const selected = await open({
     multiple: true,
     directory: false,
@@ -53,12 +89,19 @@ async function selectFiles() {
 
   if (!selected || !Array.isArray(selected) || selected.length === 0) return
 
-  if (props.mode === 'global') {
-    const result = await audioStore.importGlobalBatch(selected)
-    emit('imported', result)
-  } else if (props.projectId) {
-    const result = await audioStore.importBatch(props.projectId, selected)
-    emit('imported', result)
+  try {
+    let res: BatchImportResult
+    if (props.mode === 'global') {
+      res = await audioStore.importGlobalBatch(selected)
+    } else if (props.projectId) {
+      res = await audioStore.importBatch(props.projectId, selected)
+    } else {
+      return
+    }
+    result.value = res
+    emit('imported', res)
+  } catch {
+    result.value = null
   }
 }
 </script>
@@ -75,6 +118,15 @@ async function selectFiles() {
 }
 
 .progress-wrap {
-  width: 200px;
+  width: 220px;
+}
+
+.result-wrap {
+  width: 280px;
+}
+
+.result-alert {
+  background: rgba(76, 175, 80, 0.1) !important;
+  border: 1px solid rgba(76, 175, 80, 0.3);
 }
 </style>
