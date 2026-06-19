@@ -10,6 +10,11 @@ pub struct Settings {
     pub hoi4_game_dir: Option<String>,
     pub theme: String,
     pub import_concurrency: u32,
+    pub default_project_dir: Option<String>,
+    pub default_author: Option<String>,
+    pub default_version: Option<String>,
+    pub default_supported_version: Option<String>,
+    pub default_tags: Vec<String>,
 }
 
 impl Default for Settings {
@@ -20,6 +25,11 @@ impl Default for Settings {
             hoi4_game_dir: None,
             theme: "dark".to_string(),
             import_concurrency: 8,
+            default_project_dir: None,
+            default_author: None,
+            default_version: Some("0.1.0".to_string()),
+            default_supported_version: None,
+            default_tags: vec!["Sound".to_string()],
         }
     }
 }
