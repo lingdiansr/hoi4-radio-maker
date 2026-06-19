@@ -32,6 +32,9 @@ pub enum Hoi4RadioError {
     #[error("ffmpeg / ffprobe not found. Please install ffmpeg or specify paths manually in settings.")]
     FfmpegNotFound,
 
+    #[error("Station name already exists: {name}")]
+    StationNameExists { name: String },
+
     #[error("{message}")]
     Other { message: String },
 }
