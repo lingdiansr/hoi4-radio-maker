@@ -47,9 +47,19 @@
               <v-card class="entry-card" variant="flat" rounded="lg">
                 <v-card-title class="d-flex justify-space-between align-center">
                   <span class="text-display text-h6">歌曲列表</span>
-                  <v-chip size="small" color="primary" class="text-mono">
-                    {{ station.entries.length }} tracks
-                  </v-chip>
+                  <div class="d-flex align-center gap-2">
+                    <v-chip size="small" color="primary" class="text-mono">
+                      {{ station.entries.length }} tracks
+                    </v-chip>
+                    <v-btn
+                      icon="mdi-delete-outline"
+                      variant="text"
+                      size="small"
+                      color="error"
+                      title="删除电台"
+                      @click="confirmDelete(station)"
+                    />
+                  </div>
                 </v-card-title>
                 <v-card-text>
                   <v-list v-if="station.entries.length > 0" bg-color="transparent">
@@ -143,25 +153,61 @@
       v-model="showPicker"
       @confirm="onAudioSelected"
     />
+
+    <!-- Delete Station Dialog -->
+    <v-dialog v-model="showDeleteDialog" max-width="420" class="bureau-dialog">
+      <v-card class="dialog-card">
+        <div class="dialog-accent dialog-accent--danger" />
+        <v-card-title class="dialog-title pa-6 pb-2">
+          <div class="d-flex align-center gap-3">
+            <v-icon color="error" size="28">mdi-alert-circle</v-icon>
+            <div>
+              <div class="text-mono text-caption text-secondary">CONFIRM DELETION</div>
+              <div class="text-display text-h5">删除电台</div>
+            </div>
+          </div>
+        </v-card-title>
+
+        <v-card-text class="pa-6 pt-4 text-body-1">
+          确定要删除电台 <strong class="text-primary">{{ stationToDelete?.name }}</strong> 吗？
+          <br><br>
+          电台内的所有歌曲条目也将被删除，但音频文件仍会保留在全局音频库中。
+        </v-card-text>
+
+        <v-divider opacity="0.2" />
+
+        <v-card-actions class="pa-6">
+          <v-spacer />
+          <v-btn variant="text" class="action-btn" @click="showDeleteDialog = false">取消</v-btn>
+          <v-btn color="error" class="action-btn" prepend-icon="mdi-delete-outline" @click="handleDelete">
+            删除
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { useStationStore } from '@/stores/station'
+import { useStationStore, type Station } from '@/stores/station'
 import { useAudioStore } from '@/stores/audio'
 import { logger } from '@/utils/logger'
+import { useToastStore } from '@/stores/toast'
 import AudioPickerDialog from '@/components/AudioPickerDialog.vue'
 
 const route = useRoute()
 const stationStore = useStationStore()
 const audioStore = useAudioStore()
+const toast = useToastStore()
 const activeTab = ref<string>('')
 const showCreateDialog = ref(false)
+const showDeleteDialog = ref(false)
 const showPicker = ref(false)
 const newStationName = ref('')
 const currentStationId = ref<string>('')
+const stationToDelete = ref<Station | null>(null)
 
 const projectId = computed(() => route.params.id as string)
 
@@ -199,9 +245,29 @@ function openCreateDialog() {
 async function createStation() {
   const name = newStationName.value.trim()
   if (!name) return
-  await stationStore.createStation(name)
-  showCreateDialog.value = false
-  newStationName.value = ''
+  try {
+    await stationStore.createStation(name)
+    showCreateDialog.value = false
+    newStationName.value = ''
+  } catch (err: any) {
+    if (err?.type === 'station_name_exists') {
+      toast.display(`电台名称 "${name}" 已存在`, 'error', 4000)
+    } else {
+      throw err
+    }
+  }
+}
+
+function confirmDelete(station: Station) {
+  stationToDelete.value = station
+  showDeleteDialog.value = true
+}
+
+async function handleDelete() {
+  if (!stationToDelete.value) return
+  await stationStore.deleteStation(stationToDelete.value.id)
+  showDeleteDialog.value = false
+  stationToDelete.value = null
 }
 
 function openPicker(stationId: string) {
