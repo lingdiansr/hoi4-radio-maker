@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { invokeCommand } from '@/api/client'
+import { logger } from '@/utils/logger'
 
 export interface AudioFile {
   id: string
@@ -34,17 +35,26 @@ export const useAudioStore = defineStore('audio', () => {
   }
 
   async function loadAllAudio() {
+    logger.info('audio store: loading all audio files')
     allAudioFiles.value = await invokeCommand<AudioFile[]>('list_all_audio_files')
+    logger.info(`audio store: loaded ${allAudioFiles.value.length} audio file(s)`)
   }
 
   async function importGlobalBatch(paths: string[]): Promise<BatchImportResult> {
     importing.value = true
+    logger.info(`audio store: starting global import of ${paths.length} file(s)`)
     try {
       const result = await invokeCommand<BatchImportResult>('import_audio_batch', {
         paths,
       })
+      logger.info(
+        `audio store: import returned created=${result.created.length} existing=${result.existing.length}`
+      )
       await loadAllAudio()
       return result
+    } catch (err) {
+      logger.error(`audio store: global import failed: ${err}`)
+      throw err
     } finally {
       importing.value = false
     }

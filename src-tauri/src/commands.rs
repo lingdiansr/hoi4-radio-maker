@@ -68,7 +68,9 @@ pub fn list_audio_files(state: State<'_, AppState>, project_id: String) -> Resul
 #[tauri::command]
 pub fn list_all_audio_files(state: State<'_, AppState>) -> Result<Vec<AudioFile>> {
     let db = lock_db(&state)?;
-    AudioRepository::new(&db).list_all()
+    let files = AudioRepository::new(&db).list_all()?;
+    tracing::info!(count = files.len(), "listed all audio files");
+    Ok(files)
 }
 
 #[tauri::command]
@@ -118,11 +120,18 @@ pub async fn import_audio_batch(
         });
     }
 
+    tracing::info!(
+        project_id = ?project_id,
+        path_count = paths.len(),
+        "starting audio import batch"
+    );
+
     // Resolve settings and validate project (if given) before any await point.
     let (settings, audio_store_dir) = {
         let db = lock_db(&state)?;
         if let Some(ref pid) = project_id {
             if db.get_project(pid)?.is_none() {
+                tracing::error!(project_id = %pid, "project not found for audio import");
                 return Err(Hoi4RadioError::ProjectNotFound { id: pid.clone() });
             }
         }
@@ -230,6 +239,13 @@ pub async fn import_audio_batch(
             }
         }
     }
+
+    tracing::info!(
+        created_count = created.len(),
+        existing_count = existing.len(),
+        project_id = ?project_id,
+        "audio import batch completed"
+    );
 
     Ok(BatchImportResult { created, existing })
 }

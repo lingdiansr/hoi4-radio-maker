@@ -54,6 +54,7 @@
 import { computed, ref } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAudioStore } from '@/stores/audio'
+import { logger } from '@/utils/logger'
 import type { BatchImportResult } from '@/stores/audio'
 
 const props = withDefaults(defineProps<{
@@ -87,7 +88,12 @@ async function selectFiles() {
     ],
   })
 
-  if (!selected || !Array.isArray(selected) || selected.length === 0) return
+  if (!selected || !Array.isArray(selected) || selected.length === 0) {
+    logger.info('audio importer: no files selected')
+    return
+  }
+
+  logger.info(`audio importer: selected ${selected.length} file(s), mode=${props.mode}`)
 
   try {
     let res: BatchImportResult
@@ -96,11 +102,16 @@ async function selectFiles() {
     } else if (props.projectId) {
       res = await audioStore.importBatch(props.projectId, selected)
     } else {
+      logger.warn('audio importer: project mode selected but no projectId provided')
       return
     }
     result.value = res
+    logger.info(
+      `audio importer: import finished, created=${res.created.length} existing=${res.existing.length}`
+    )
     emit('imported', res)
-  } catch {
+  } catch (err) {
+    logger.error(`audio importer: import failed: ${err}`)
     result.value = null
   }
 }
