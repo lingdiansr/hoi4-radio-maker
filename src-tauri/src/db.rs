@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use crate::error::{Hoi4RadioError, Result};
-use crate::models::{AudioFile, CreateProjectRequest, Project, UpdateProjectRequest};
+use crate::models::{AudioFile, BatchUpdateAudioFileRequest, CreateProjectRequest, Project, UpdateAudioFileRequest, UpdateProjectRequest};
 
 /// Result type for a batch import operation.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -397,6 +397,117 @@ impl Db {
         self.conn
             .execute("DELETE FROM audio_files WHERE id = ?1", params![id])?;
         Ok(())
+    }
+
+    /// Update a single audio file.
+    pub fn update_audio_file(&self, id: &str, req: &UpdateAudioFileRequest) -> Result<AudioFile> {
+        let mut sets = Vec::new();
+        let mut params: Vec<rusqlite::types::Value> = Vec::new();
+
+        if let Some(title) = &req.title {
+            sets.push("title = ?".to_string());
+            params.push(rusqlite::types::Value::Text(title.clone()));
+        }
+        if let Some(artist) = &req.artist {
+            sets.push("artist = ?".to_string());
+            params.push(match artist {
+                Some(a) => rusqlite::types::Value::Text(a.clone()),
+                None => rusqlite::types::Value::Null,
+            });
+        }
+        if let Some(volume) = req.volume {
+            sets.push("volume = ?".to_string());
+            params.push(rusqlite::types::Value::Real(volume));
+        }
+        if let Some(tags) = &req.tags {
+            sets.push("tags = ?".to_string());
+            params.push(rusqlite::types::Value::Text(serde_json::to_string(tags)?));
+        }
+        if let Some(notes) = &req.notes {
+            sets.push("notes = ?".to_string());
+            params.push(match notes {
+                Some(n) => rusqlite::types::Value::Text(n.clone()),
+                None => rusqlite::types::Value::Null,
+            });
+        }
+
+        if sets.is_empty() {
+            return self
+                .get_audio_file(id)?
+                .ok_or_else(|| Hoi4RadioError::Other {
+                    message: format!("audio file not found: {id}"),
+                });
+        }
+
+        let now = Utc::now().to_rfc3339();
+        sets.push("updated_at = ?".to_string());
+        params.push(rusqlite::types::Value::Text(now));
+
+        let sql = format!("UPDATE audio_files SET {} WHERE id = ?", sets.join(", "));
+        params.push(rusqlite::types::Value::Text(id.to_string()));
+
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+        self.conn.execute(&sql, param_refs.as_slice())?;
+
+        self.get_audio_file(id)?.ok_or_else(|| Hoi4RadioError::Other {
+            message: format!("audio file not found: {id}"),
+        })
+    }
+
+    /// Batch update multiple audio files.
+    pub fn batch_update_audio_files(
+        &self,
+        ids: &[String],
+        req: &BatchUpdateAudioFileRequest,
+    ) -> Result<Vec<AudioFile>> {
+        let mut sets = Vec::new();
+        let mut params: Vec<rusqlite::types::Value> = Vec::new();
+
+        if let Some(artist) = &req.artist {
+            sets.push("artist = ?".to_string());
+            params.push(match artist {
+                Some(a) => rusqlite::types::Value::Text(a.clone()),
+                None => rusqlite::types::Value::Null,
+            });
+        }
+        if let Some(volume) = req.volume {
+            sets.push("volume = ?".to_string());
+            params.push(rusqlite::types::Value::Real(volume));
+        }
+        if let Some(tags) = &req.tags {
+            sets.push("tags = ?".to_string());
+            params.push(rusqlite::types::Value::Text(serde_json::to_string(tags)?));
+        }
+
+        if sets.is_empty() || ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let now = Utc::now().to_rfc3339();
+        sets.push("updated_at = ?".to_string());
+        params.push(rusqlite::types::Value::Text(now));
+
+        let id_placeholders: Vec<String> = (0..ids.len()).map(|_| "?".to_string()).collect();
+        let sql = format!(
+            "UPDATE audio_files SET {} WHERE id IN ({})",
+            sets.join(", "),
+            id_placeholders.join(", ")
+        );
+
+        for id in ids {
+            params.push(rusqlite::types::Value::Text(id.clone()));
+        }
+
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+        self.conn.execute(&sql, param_refs.as_slice())?;
+
+        let mut result = Vec::new();
+        for id in ids {
+            if let Some(audio) = self.get_audio_file(id)? {
+                result.push(audio);
+            }
+        }
+        Ok(result)
     }
 }
 

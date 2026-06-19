@@ -15,6 +15,23 @@ impl<'a> StationRepository<'a> {
         Self { db }
     }
 
+    /// Check whether a station with the given name already exists in the project.
+    pub fn find_by_name(&self, project_id: &str, name: &str) -> Result<Option<Station>> {
+        let mut stmt = self.db.conn().prepare(
+            "SELECT id, name FROM stations WHERE project_id = ?1 AND name = ?2",
+        )?;
+        let mut rows = stmt.query(params![project_id, name])?;
+        match rows.next()? {
+            Some(row) => {
+                let id: String = row.get("id")?;
+                let name: String = row.get("name")?;
+                let entries = self.list_entries(&id)?;
+                Ok(Some(Station { id, name, entries }))
+            }
+            None => Ok(None),
+        }
+    }
+
     /// Create a new station within a project.
     pub fn create(&self, project_id: &str, name: &str) -> Result<Station> {
         let id = format!("station_{}", Uuid::new_v4().to_string().replace('-', ""));

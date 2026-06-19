@@ -1,6 +1,6 @@
 use crate::db::{BatchImportResult, Db};
 use crate::error::Result;
-use crate::models::AudioFile;
+use crate::models::{AudioFile, BatchUpdateAudioFileRequest, UpdateAudioFileRequest};
 
 /// Repository for audio file records in the global library.
 pub struct AudioRepository<'a> {
@@ -51,6 +51,20 @@ impl<'a> AudioRepository<'a> {
     /// Delete an audio file from the global library.
     pub fn delete(&self, id: &str) -> Result<()> {
         self.db.delete_audio_file(id)
+    }
+
+    /// Update a single audio file.
+    pub fn update(&self, id: &str, req: &UpdateAudioFileRequest) -> Result<AudioFile> {
+        self.db.update_audio_file(id, req)
+    }
+
+    /// Batch update multiple audio files.
+    pub fn batch_update(
+        &self,
+        ids: &[String],
+        req: &BatchUpdateAudioFileRequest,
+    ) -> Result<Vec<AudioFile>> {
+        self.db.batch_update_audio_files(ids, req)
     }
 
     /// Import multiple audio files into a project.
