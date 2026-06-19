@@ -567,3 +567,101 @@ fn project_from_row(row: &rusqlite::Row) -> Result<Project> {
         updated_at: parse_dt(&updated_at_str)?,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{BatchUpdateAudioFileRequest, UpdateAudioFileRequest};
+    use chrono::Utc;
+
+    fn dummy_audio(id: &str, title: &str) -> AudioFile {
+        AudioFile {
+            id: id.to_string(),
+            source_hash: format!("hash_{id}"),
+            title: title.to_string(),
+            artist: None,
+            source_path: PathBuf::from(format!("/tmp/{id}.mp3")),
+            ogg_filename: format!("{id}.ogg"),
+            duration_secs: 120.0,
+            sample_rate: 44100,
+            channels: 2,
+            volume: 0.75,
+            tags: vec!["Sound".to_string()],
+            notes: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn update_audio_file_changes_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::open(&dir.path().join("test.db")).unwrap();
+        let audio = dummy_audio("audio_1", "Old Title");
+        db.create_audio_file(&audio).unwrap();
+
+        let updated = db
+            .update_audio_file(
+                &audio.id,
+                &UpdateAudioFileRequest {
+                    title: Some("New Title".to_string()),
+                    artist: Some(Some("Artist".to_string())),
+                    volume: Some(0.5),
+                    tags: Some(vec!["Radio".to_string()]),
+                    notes: Some(Some("note".to_string())),
+                },
+            )
+            .unwrap();
+
+        assert_eq!(updated.title, "New Title");
+        assert_eq!(updated.artist, Some("Artist".to_string()));
+        assert_eq!(updated.volume, 0.5);
+        assert_eq!(updated.tags, vec!["Radio".to_string()]);
+        assert_eq!(updated.notes, Some("note".to_string()));
+    }
+
+    #[test]
+    fn batch_update_audio_files_changes_common_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::open(&dir.path().join("test.db")).unwrap();
+        let a1 = dummy_audio("audio_a", "A");
+        let a2 = dummy_audio("audio_b", "B");
+        db.create_audio_file(&a1).unwrap();
+        db.create_audio_file(&a2).unwrap();
+
+        let updated = db
+            .batch_update_audio_files(
+                &[a1.id.clone(), a2.id.clone()],
+                &BatchUpdateAudioFileRequest {
+                    artist: Some(Some("Shared Artist".to_string())),
+                    volume: Some(0.9),
+                    tags: Some(vec!["Batch".to_string()]),
+                },
+            )
+            .unwrap();
+
+        assert_eq!(updated.len(), 2);
+        for audio in updated {
+            assert_eq!(audio.artist, Some("Shared Artist".to_string()));
+            assert_eq!(audio.volume, 0.9);
+            assert_eq!(audio.tags, vec!["Batch".to_string()]);
+        }
+    }
+
+    #[test]
+    fn batch_update_returns_empty_when_no_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::open(&dir.path().join("test.db")).unwrap();
+        let result = db
+            .batch_update_audio_files(
+                &[],
+                &BatchUpdateAudioFileRequest {
+                    artist: Some(Some("Artist".to_string())),
+                    volume: None,
+                    tags: None,
+                },
+            )
+            .unwrap();
+        assert!(result.is_empty());
+    }
+}

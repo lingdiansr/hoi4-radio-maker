@@ -160,3 +160,60 @@ impl<'a> StationRepository<'a> {
         Ok(entries)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Db;
+    use crate::models::CreateProjectRequest;
+    use std::path::PathBuf;
+
+    #[test]
+    fn find_by_name_returns_existing_station() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::open(&dir.path().join("test.db")).unwrap();
+        let project = db
+            .create_project(&CreateProjectRequest {
+                name: "Test".to_string(),
+                version: "0.1.0".to_string(),
+                supported_version: "*".to_string(),
+                tags: vec![],
+                author: None,
+                output_dir: PathBuf::from("/tmp/test"),
+            })
+            .unwrap();
+
+        let repo = StationRepository::new(&db);
+        repo.create(&project.id, "Frontline").unwrap();
+
+        let found = repo.find_by_name(&project.id, "Frontline").unwrap();
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().name, "Frontline");
+
+        let missing = repo.find_by_name(&project.id, "Missing").unwrap();
+        assert!(missing.is_none());
+    }
+
+    #[test]
+    fn delete_station_removes_station_and_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::open(&dir.path().join("test.db")).unwrap();
+        let project = db
+            .create_project(&CreateProjectRequest {
+                name: "Test".to_string(),
+                version: "0.1.0".to_string(),
+                supported_version: "*".to_string(),
+                tags: vec![],
+                author: None,
+                output_dir: PathBuf::from("/tmp/test"),
+            })
+            .unwrap();
+
+        let repo = StationRepository::new(&db);
+        let station = repo.create(&project.id, "ToDelete").unwrap();
+        repo.delete(&station.id).unwrap();
+
+        let remaining = repo.list_by_project(&project.id).unwrap();
+        assert!(remaining.is_empty());
+    }
+}
