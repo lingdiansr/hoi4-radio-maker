@@ -62,5 +62,10 @@ export const useStationStore = defineStore('station', () => {
     await loadStations()
   }
 
-  return { stations, loadStations, createStation, addEntry, removeEntry }
+  async function deleteStation(stationId: string) {
+    await invokeCommand('delete_station', { stationId })
+    stations.value = stations.value.filter((s) => s.id !== stationId)
+  }
+
+  return { stations, loadStations, createStation, addEntry, removeEntry, deleteStation }
 })
