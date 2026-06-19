@@ -120,3 +120,21 @@ pub struct AddStationEntryRequest {
     pub audio_file_id: String,
     pub chance: ChanceConfig,
 }
+
+/// Request payload for updating a single audio file.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateAudioFileRequest {
+    pub title: Option<String>,
+    pub artist: Option<Option<String>>,
+    pub volume: Option<f64>,
+    pub tags: Option<Vec<String>>,
+    pub notes: Option<Option<String>>,
+}
+
+/// Request payload for batch updating multiple audio files.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchUpdateAudioFileRequest {
+    pub artist: Option<Option<String>>,
+    pub volume: Option<f64>,
+    pub tags: Option<Vec<String>>,
+}
