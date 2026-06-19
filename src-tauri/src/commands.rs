@@ -80,7 +80,7 @@ fn resolve_output_dir(db: &Db, req: &CreateProjectRequest) -> Result<PathBuf> {
         .as_deref()
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
-        .or_else(|| dirs::document_dir())
+        .or_else(dirs::document_dir)
         .ok_or_else(|| Hoi4RadioError::Other {
             message: "could not determine default project directory".to_string(),
         })?;
@@ -537,7 +537,7 @@ pub fn get_default_project_dir(state: State<'_, AppState>) -> Result<String> {
         .as_deref()
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
-        .or_else(|| dirs::document_dir())
+        .or_else(dirs::document_dir)
         .ok_or_else(|| Hoi4RadioError::Other {
             message: "could not determine default project directory".to_string(),
         })?;

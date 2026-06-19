@@ -102,9 +102,9 @@ fn is_executable(path: &Path) -> bool {
 
 fn expand_tilde(path: &Path) -> PathBuf {
     let s = path.to_string_lossy();
-    if s.starts_with("~/") {
+    if let Some(rest) = s.strip_prefix("~/") {
         if let Some(home) = dirs::home_dir() {
-            return home.join(&s[2..]);
+            return home.join(rest);
         }
     }
     path.to_path_buf()
