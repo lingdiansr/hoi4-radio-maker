@@ -128,20 +128,31 @@ pub async fn import_audio_batch(
 
     // Resolve settings and validate project (if given) before any await point.
     let (settings, audio_store_dir) = {
-        let db = lock_db(&state)?;
+        let db = lock_db(&state).map_err(|e| {
+            tracing::error!(error = %e, "failed to lock database");
+            e
+        })?;
         if let Some(ref pid) = project_id {
             if db.get_project(pid)?.is_none() {
                 tracing::error!(project_id = %pid, "project not found for audio import");
                 return Err(Hoi4RadioError::ProjectNotFound { id: pid.clone() });
             }
         }
-        let settings = Settings::get(&db)?;
+        let settings = Settings::get(&db).map_err(|e| {
+            tracing::error!(error = %e, "failed to load settings");
+            e
+        })?;
+        tracing::debug!(settings = ?settings, "loaded settings");
         let app_dir = dirs::data_dir()
-            .ok_or_else(|| Hoi4RadioError::Other {
-                message: "could not determine application data directory".to_string(),
+            .ok_or_else(|| {
+                tracing::error!("could not determine application data directory");
+                Hoi4RadioError::Other {
+                    message: "could not determine application data directory".to_string(),
+                }
             })?
             .join("hoi4-radio-maker")
             .join("audio");
+        tracing::debug!(audio_store_dir = %app_dir.display(), "resolved audio store directory");
         (settings, app_dir)
     };
 

@@ -53,7 +53,7 @@ export const useAudioStore = defineStore('audio', () => {
       await loadAllAudio()
       return result
     } catch (err) {
-      logger.error(`audio store: global import failed: ${err}`)
+      logger.error(`audio store: global import failed: ${JSON.stringify(err)}`)
       throw err
     } finally {
       importing.value = false

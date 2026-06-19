@@ -111,7 +111,7 @@ async function selectFiles() {
     )
     emit('imported', res)
   } catch (err) {
-    logger.error(`audio importer: import failed: ${err}`)
+    logger.error(`audio importer: import failed: ${JSON.stringify(err)}`)
     result.value = null
   }
 }
