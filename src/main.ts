@@ -1,6 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import { attachConsole, debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
+import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import '@mdi/font/css/materialdesignicons.css'
 import vuetify from '@/plugins/vuetify'
 import App from './App.vue'
@@ -23,8 +23,6 @@ async function bootstrap() {
   forwardConsole('info', info)
   forwardConsole('warn', warn)
   forwardConsole('error', error)
-
-  await attachConsole()
 
   const app = createApp(App)
   app.use(createPinia())
