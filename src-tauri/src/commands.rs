@@ -7,7 +7,7 @@ use crate::models::{
     AudioFile, BatchUpdateAudioFileRequest, CreateProjectRequest, Project, UpdateAudioFileRequest,
     UpdateProjectRequest,
 };
-use crate::settings::Settings;
+use crate::settings::{Settings, SettingsResponse};
 use crate::station::StationRepository;
 use crate::validator::validate_mod_output;
 use chrono::Utc;
@@ -490,8 +490,9 @@ pub async fn validate_project_mod(
 }
 
 #[tauri::command]
-pub fn get_settings(state: State<'_, AppState>) -> Result<Settings> {
+pub fn get_settings(state: State<'_, AppState>) -> Result<SettingsResponse> {
     use crate::ffmpeg_finder::detect_ffmpeg;
+    use crate::hoi4_version::detect_game_version;
 
     let db = lock_db(&state)?;
     let mut settings = Settings::get(&db)?;
@@ -509,7 +510,16 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<Settings> {
         return Err(Hoi4RadioError::FfmpegNotFound);
     }
 
-    Ok(settings)
+    let detected_supported_version = settings
+        .hoi4_game_dir
+        .as_deref()
+        .filter(|_| settings.default_supported_version.is_none())
+        .and_then(|dir| detect_game_version(std::path::Path::new(dir)));
+
+    Ok(SettingsResponse {
+        settings,
+        detected_supported_version,
+    })
 }
 
 #[tauri::command]

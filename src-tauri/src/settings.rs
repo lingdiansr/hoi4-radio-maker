@@ -3,6 +3,14 @@ use crate::error::Result;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 
+/// Settings enriched with transient, derived values for the frontend.
+#[derive(Debug, Clone, Serialize)]
+pub struct SettingsResponse {
+    #[serde(flatten)]
+    pub settings: Settings,
+    pub detected_supported_version: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub ffmpeg_path: Option<String>,
