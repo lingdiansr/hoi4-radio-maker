@@ -3,7 +3,7 @@
     <v-card class="settings-card" variant="elevated" rounded="xl">
       <v-card-title class="pa-6 pb-2">
         <div class="text-mono text-caption text-secondary mb-1">PROJECT DOSSIER</div>
-        <div class="text-display text-h5">项目设置</div>
+        <div class="text-display text-h5">项目信息</div>
       </v-card-title>
 
       <v-divider opacity="0.2" />
@@ -38,14 +38,13 @@
               hide-details="auto"
               :rules="[required]"
             />
-            <PathField
-              v-model="form.output_dir"
+            <v-text-field
+              :model-value="form.output_dir"
               label="输出目录"
-              placeholder="选择 Mod 输出目录"
               prepend-inner-icon="mdi-folder-open"
-              picker-mode="directory"
               class="mb-4"
-              :rules="[required]"
+              hide-details="auto"
+              readonly
             />
             <v-text-field
               v-model="authorInput"
@@ -74,7 +73,7 @@
               :loading="saving"
               @click="save"
             >
-              保存项目设置
+              保存项目信息
             </v-btn>
 
             <v-divider class="my-6" opacity="0.2" />
@@ -133,7 +132,7 @@
               <v-card-text>
                 <v-icon color="primary" size="32" class="mb-2">mdi-information-outline</v-icon>
                 <div class="text-body text-secondary text-body-2">
-                  项目名称、版本与输出目录会写入生成的 Mod 描述文件。修改输出目录不会影响已导入的音频文件。
+                  项目名称、版本与输出目录会写入生成的 Mod 描述文件。输出目录在项目创建时确定，此处仅作查看；如需更改，请新建项目。
                 </div>
               </v-card-text>
             </v-card>
@@ -155,7 +154,6 @@ import { useRoute } from 'vue-router'
 import { useProjectStore, type UpdateProjectRequest } from '@/stores/project'
 import { useAudioStore } from '@/stores/audio'
 import { useCommand } from '@/composables/useCommand'
-import PathField from '@/components/PathField.vue'
 import AudioPickerDialog from '@/components/AudioPickerDialog.vue'
 
 const route = useRoute()

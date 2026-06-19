@@ -36,7 +36,7 @@
 
     <v-tabs v-model="tab" class="bureau-tabs" bg-color="transparent">
       <v-tab value="stations" prepend-icon="mdi-antenna">电台编辑</v-tab>
-      <v-tab value="settings" prepend-icon="mdi-file-cog">项目设置</v-tab>
+      <v-tab value="settings" prepend-icon="mdi-file-cog">项目信息</v-tab>
     </v-tabs>
 
     <v-window v-model="tab" class="bureau-window">
