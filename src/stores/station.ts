@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { invokeCommand } from '@/api/client'
 import { useProjectStore } from '@/stores/project'
+import { logger } from '@/utils/logger'
 
 export interface ChanceConfig {
   factor: number
@@ -41,12 +42,19 @@ export const useStationStore = defineStore('station', () => {
   }
 
   async function addEntry(stationId: string, audioFileId: string, chance: ChanceConfig) {
-    await invokeCommand('add_station_entry', {
-      stationId,
-      audioFileId,
-      chance,
-    })
-    await loadStations()
+    logger.info(`station store: adding entry ${audioFileId} to station ${stationId}`)
+    try {
+      await invokeCommand('add_station_entry', {
+        stationId,
+        audioFileId,
+        chance,
+      })
+      await loadStations()
+      logger.info(`station store: entry ${audioFileId} added to station ${stationId}`)
+    } catch (err) {
+      logger.error(`station store: failed to add entry: ${JSON.stringify(err)}`)
+      throw err
+    }
   }
 
   async function removeEntry(stationId: string, audioFileId: string) {

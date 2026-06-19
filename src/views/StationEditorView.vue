@@ -151,6 +151,7 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStationStore } from '@/stores/station'
 import { useAudioStore } from '@/stores/audio'
+import { logger } from '@/utils/logger'
 import AudioPickerDialog from '@/components/AudioPickerDialog.vue'
 
 const route = useRoute()
@@ -209,10 +210,22 @@ function openPicker(stationId: string) {
 }
 
 async function onAudioSelected(audioIds: string[]) {
-  if (!currentStationId.value || !projectId.value) return
-  await audioStore.addToProject(projectId.value, audioIds)
-  for (const audioId of audioIds) {
-    await stationStore.addEntry(currentStationId.value, audioId, { factor: 1 })
+  if (!currentStationId.value || !projectId.value) {
+    logger.warn('station editor: missing station or project id when adding audio')
+    return
+  }
+  logger.info(
+    `station editor: adding ${audioIds.length} audio file(s) to project ${projectId.value} and station ${currentStationId.value}`
+  )
+  try {
+    await audioStore.addToProject(projectId.value, audioIds)
+    for (const audioId of audioIds) {
+      await stationStore.addEntry(currentStationId.value, audioId, { factor: 1 })
+    }
+    logger.info('station editor: audio added successfully')
+  } catch (err) {
+    logger.error(`station editor: failed to add audio: ${JSON.stringify(err)}`)
+    throw err
   }
 }
 

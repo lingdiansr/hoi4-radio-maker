@@ -287,6 +287,12 @@ pub fn add_station_entry(
     audio_file_id: String,
     chance: crate::models::ChanceConfig,
 ) -> Result<()> {
+    tracing::info!(
+        station_id = %station_id,
+        audio_file_id = %audio_file_id,
+        ?chance,
+        "adding station entry"
+    );
     let db = lock_db(&state)?;
     StationRepository::new(&db).add_entry(&station_id, &audio_file_id, chance)
 }

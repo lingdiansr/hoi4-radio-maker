@@ -62,6 +62,7 @@ pub struct StationEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChanceConfig {
     pub factor: f64,
+    #[serde(default)]
     pub modifiers: Vec<Modifier>,
 }
 
