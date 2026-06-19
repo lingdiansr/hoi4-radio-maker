@@ -25,6 +25,20 @@ export interface BatchImportResult {
   existing: AudioFile[]
 }
 
+export interface UpdateAudioFileRequest {
+  title?: string
+  artist?: string | null
+  volume?: number
+  tags?: string[]
+  notes?: string | null
+}
+
+export interface BatchUpdateAudioFileRequest {
+  artist?: string | null
+  volume?: number
+  tags?: string[]
+}
+
 export const useAudioStore = defineStore('audio', () => {
   const audioFiles = ref<AudioFile[]>([])
   const allAudioFiles = ref<AudioFile[]>([])
@@ -95,6 +109,29 @@ export const useAudioStore = defineStore('audio', () => {
     allAudioFiles.value = allAudioFiles.value.filter((a) => a.id !== id)
   }
 
+  async function updateAudio(id: string, req: UpdateAudioFileRequest) {
+    const updated = await invokeCommand<AudioFile>('update_audio_file', { id, req })
+    const idx = allAudioFiles.value.findIndex((a) => a.id === id)
+    if (idx !== -1) {
+      allAudioFiles.value[idx] = updated
+    }
+    return updated
+  }
+
+  async function batchUpdateAudio(ids: string[], req: BatchUpdateAudioFileRequest) {
+    const updated = await invokeCommand<AudioFile[]>('batch_update_audio_files', {
+      ids,
+      req,
+    })
+    for (const audio of updated) {
+      const idx = allAudioFiles.value.findIndex((a) => a.id === audio.id)
+      if (idx !== -1) {
+        allAudioFiles.value[idx] = audio
+      }
+    }
+    return updated
+  }
+
   return {
     audioFiles,
     allAudioFiles,
@@ -106,5 +143,7 @@ export const useAudioStore = defineStore('audio', () => {
     addToProject,
     removeFromProject,
     deleteAudio,
+    updateAudio,
+    batchUpdateAudio,
   }
 })
