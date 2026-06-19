@@ -65,15 +65,19 @@ pub fn run() {
             commands::add_audio_to_project,
             commands::remove_audio_from_project,
             commands::delete_audio_file,
+            commands::update_audio_file,
+            commands::batch_update_audio_files,
             commands::import_audio_batch,
             commands::list_stations,
             commands::create_station,
+            commands::delete_station,
             commands::add_station_entry,
             commands::remove_station_entry,
             commands::generate_project_mod,
             commands::validate_project_mod,
             commands::get_settings,
             commands::save_settings,
+            commands::get_default_project_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

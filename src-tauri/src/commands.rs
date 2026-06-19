@@ -3,13 +3,16 @@ use crate::audio_repo::AudioRepository;
 use crate::db::{BatchImportResult, Db};
 use crate::error::{Hoi4RadioError, Result};
 use crate::generator::generate_mod;
-use crate::models::{AudioFile, CreateProjectRequest, Project, UpdateProjectRequest};
+use crate::models::{
+    AudioFile, BatchUpdateAudioFileRequest, CreateProjectRequest, Project, UpdateAudioFileRequest,
+    UpdateProjectRequest,
+};
 use crate::settings::Settings;
 use crate::station::StationRepository;
 use crate::validator::validate_mod_output;
 use chrono::Utc;
 use futures::stream::{StreamExt, TryStreamExt};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::State;
 use uuid::Uuid;
@@ -26,9 +29,111 @@ fn lock_db(state: &AppState) -> Result<std::sync::MutexGuard<'_, Db>> {
 }
 
 #[tauri::command]
-pub fn create_project(state: State<'_, AppState>, req: CreateProjectRequest) -> Result<Project> {
+pub async fn create_project(
+    state: State<'_, AppState>,
+    req: CreateProjectRequest,
+) -> Result<Project> {
+    let output_dir = {
+        let db = lock_db(&state)?;
+        resolve_output_dir(&db, &req)?
+    };
+
+    // Ensure the output directory exists.
+    tokio::fs::create_dir_all(&output_dir).await?;
+
+    let mod_descriptor = write_mod_descriptor(&req, &output_dir).await?;
+
+    let db_req = CreateProjectRequest {
+        name: req.name.clone(),
+        version: req.version.clone(),
+        supported_version: req.supported_version.clone(),
+        tags: req.tags.clone(),
+        author: req.author.clone(),
+        output_dir,
+    };
+
     let db = lock_db(&state)?;
-    db.create_project(&req)
+    let project = db.create_project(&db_req)?;
+
+    tracing::info!(
+        project_id = %project.id,
+        output_dir = %project.output_dir.display(),
+        mod_descriptor = %mod_descriptor.display(),
+        "created new project"
+    );
+
+    Ok(project)
+}
+
+/// Resolve the project output directory from the request or settings.
+fn resolve_output_dir(db: &Db, req: &CreateProjectRequest) -> Result<PathBuf> {
+    if let Some(dir) = req.output_dir.to_str().filter(|s| !s.is_empty()) {
+        let path = PathBuf::from(dir);
+        if path.components().count() > 1 {
+            return Ok(path);
+        }
+    }
+
+    let settings = Settings::get(db)?;
+    let base = settings
+        .default_project_dir
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| dirs::document_dir())
+        .ok_or_else(|| Hoi4RadioError::Other {
+            message: "could not determine default project directory".to_string(),
+        })?;
+
+    let folder_name = sanitize_folder_name(&req.name);
+    Ok(base.join("mod").join(&folder_name))
+}
+
+fn sanitize_folder_name(name: &str) -> String {
+    name.trim()
+        .replace(|c: char| c.is_ascii_control() || matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'), "_")
+        .replace(' ', "_")
+}
+
+/// Write the HOI4 `.mod` descriptor next to the output directory.
+async fn write_mod_descriptor(req: &CreateProjectRequest, output_dir: &Path) -> Result<PathBuf> {
+    let folder_name = sanitize_folder_name(&req.name);
+    let mod_file = output_dir
+        .parent()
+        .ok_or_else(|| Hoi4RadioError::Other {
+            message: "output directory has no parent".to_string(),
+        })?
+        .join(format!("{}.mod", folder_name));
+
+    let tags_line = req
+        .tags
+        .iter()
+        .map(|t| format!("\"{}\"", t.replace('"', "\\\"")))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let tags = if tags_line.is_empty() {
+        "\"Sound\"".to_string()
+    } else {
+        format!("{{ {} }}", tags_line)
+    };
+
+    let mut lines = vec![
+        format!("name=\"{}\"", req.name.replace('"', "\\\"")),
+        format!("path=\"mod/{}\"", folder_name),
+        format!("tags={}", tags),
+        format!("version=\"{}\"", req.version.replace('"', "\\\"")),
+        format!(
+            "supported_version=\"{}\"",
+            req.supported_version.replace('"', "\\\"")
+        ),
+    ];
+    if let Some(author) = &req.author {
+        lines.push(format!("author=\"{}\"", author.replace('"', "\\\"")));
+    }
+    lines.push(String::new());
+
+    tokio::fs::write(&mod_file, lines.join("\n")).await?;
+    Ok(mod_file)
 }
 
 #[tauri::command]
@@ -101,6 +206,26 @@ pub fn remove_audio_from_project(
 pub fn delete_audio_file(state: State<'_, AppState>, id: String) -> Result<()> {
     let db = lock_db(&state)?;
     AudioRepository::new(&db).delete(&id)
+}
+
+#[tauri::command]
+pub fn update_audio_file(
+    state: State<'_, AppState>,
+    id: String,
+    req: UpdateAudioFileRequest,
+) -> Result<AudioFile> {
+    let db = lock_db(&state)?;
+    AudioRepository::new(&db).update(&id, &req)
+}
+
+#[tauri::command]
+pub fn batch_update_audio_files(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    req: BatchUpdateAudioFileRequest,
+) -> Result<Vec<AudioFile>> {
+    let db = lock_db(&state)?;
+    AudioRepository::new(&db).batch_update(&ids, &req)
 }
 
 /// Batch import audio files into the global library.
@@ -277,7 +402,17 @@ pub fn create_station(
     name: String,
 ) -> Result<crate::models::Station> {
     let db = lock_db(&state)?;
-    StationRepository::new(&db).create(&project_id, &name)
+    let repo = StationRepository::new(&db);
+    if repo.find_by_name(&project_id, &name)?.is_some() {
+        return Err(Hoi4RadioError::StationNameExists { name });
+    }
+    repo.create(&project_id, &name)
+}
+
+#[tauri::command]
+pub fn delete_station(state: State<'_, AppState>, station_id: String) -> Result<()> {
+    let db = lock_db(&state)?;
+    StationRepository::new(&db).delete(&station_id)
 }
 
 #[tauri::command]
@@ -381,4 +516,20 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<Settings> {
 pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<()> {
     let db = lock_db(&state)?;
     settings.save(&db)
+}
+
+#[tauri::command]
+pub fn get_default_project_dir(state: State<'_, AppState>) -> Result<String> {
+    let db = lock_db(&state)?;
+    let settings = Settings::get(&db)?;
+    let base = settings
+        .default_project_dir
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| dirs::document_dir())
+        .ok_or_else(|| Hoi4RadioError::Other {
+            message: "could not determine default project directory".to_string(),
+        })?;
+    Ok(base.join("mod").to_string_lossy().to_string())
 }
