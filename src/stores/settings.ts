@@ -33,7 +33,7 @@ export const useSettingsStore = defineStore('settings', () => {
     loading.value = true
     try {
       const resp = await invokeCommand<SettingsResponse>('get_settings')
-      logger.info('settings store: loaded settings', resp)
+      logger.info(`settings store: loaded settings: ${JSON.stringify(resp)}`)
       const { detected_supported_version, ...rest } = resp
       settings.value = rest
       detectedSupportedVersion.value = detected_supported_version

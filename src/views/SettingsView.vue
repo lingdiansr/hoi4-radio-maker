@@ -19,7 +19,7 @@
       <v-divider opacity="0.2" />
 
       <v-card-text class="pa-6">
-        <v-row>
+        <v-row v-if="settingsStore.settings">
           <v-col cols="12" md="8">
             <PathField
               v-model="ffmpegPath"
@@ -44,6 +44,51 @@
               prepend-inner-icon="mdi-folder-open"
               picker-mode="directory"
               class="mb-4"
+            />
+            <PathField
+              v-model="defaultProjectDir"
+              label="默认项目根目录"
+              placeholder="选择默认存放 mods 的目录"
+              prepend-inner-icon="mdi-folder-cog"
+              picker-mode="directory"
+              class="mb-4"
+            />
+            <v-text-field
+              v-model="settings.default_author"
+              label="默认作者"
+              placeholder="未设置时使用系统用户名"
+              prepend-inner-icon="mdi-account"
+              class="mb-4"
+              hide-details="auto"
+              clearable
+            />
+            <v-text-field
+              v-model="settings.default_version"
+              label="默认项目版本"
+              placeholder="0.1.0"
+              prepend-inner-icon="mdi-tag-outline"
+              class="mb-4"
+              hide-details="auto"
+            />
+            <v-text-field
+              v-model="settings.default_supported_version"
+              label="默认兼容游戏版本"
+              placeholder="留空时自动探测 HOI4 版本"
+              prepend-inner-icon="mdi-gamepad-variant"
+              class="mb-4"
+              hide-details="auto"
+              clearable
+            />
+            <v-combobox
+              v-model="settings.default_tags"
+              label="默认标签"
+              placeholder="输入后按回车添加"
+              prepend-inner-icon="mdi-tag-multiple"
+              multiple
+              chips
+              clearable
+              class="mb-4"
+              hide-details="auto"
             />
             <v-slider
               v-model="settings.import_concurrency"
@@ -71,6 +116,7 @@
               size="large"
               prepend-icon="mdi-content-save"
               class="save-btn"
+              :loading="saving"
               @click="save"
             >
               保存设置
@@ -82,10 +128,20 @@
               <v-card-text>
                 <v-icon color="primary" size="32" class="mb-2">mdi-information-outline</v-icon>
                 <div class="text-body text-secondary text-body-2">
-                  全局设置会保存在应用数据目录中，对所有项目生效。启动时会自动探测 ffmpeg 与 ffprobe；若未找到且未手动指定，将提示错误。导入并发数控制同时计算文件哈希的并行度（ffmpeg 转码会在此基础上减半运行）。
+                  全局设置会保存在应用数据目录中，对所有项目生效。启动时会自动探测 ffmpeg 与 ffprobe；若未找到且未手动指定，将提示错误。
+                  <br><br>
+                  <strong>默认项目根目录</strong>用于新建项目时自动生成文件夹与 .mod 文件。<strong>默认兼容游戏版本</strong>留空时，会尝试从 HOI4 游戏目录读取 launcher-settings.json 自动填充。
+                  <br><br>
+                  导入并发数控制同时计算文件哈希的并行度（ffmpeg 转码会在此基础上减半运行）。
                 </div>
               </v-card-text>
             </v-card>
+          </v-col>
+        </v-row>
+        <v-row v-else>
+          <v-col cols="12" class="text-center py-8">
+            <v-progress-circular indeterminate color="primary" />
+            <div class="text-secondary mt-2">加载设置中...</div>
           </v-col>
         </v-row>
       </v-card-text>
@@ -125,53 +181,59 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, onMounted, computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { appLogDir } from '@tauri-apps/api/path'
 import { openPath } from '@tauri-apps/plugin-opener'
-import { invokeCommand } from '@/api/client'
-import { useCommand } from '@/composables/useCommand'
+import { useSettingsStore } from '@/stores/settings'
 import { logger } from '@/utils/logger'
 import PathField from '@/components/PathField.vue'
 
 const router = useRouter()
+const settingsStore = useSettingsStore()
 
-interface Settings {
-  ffmpeg_path: string | null
-  ffprobe_path: string | null
-  hoi4_game_dir: string | null
-  theme: string
-  import_concurrency: number
-}
+const saving = ref(false)
 
-const { run } = useCommand()
-
-const settings = reactive<Settings>({
-  ffmpeg_path: null,
-  ffprobe_path: null,
-  hoi4_game_dir: null,
-  theme: 'dark',
-  import_concurrency: 8,
+const settings = computed({
+  get: () => settingsStore.settings!,
+  set: (v) => {
+    settingsStore.settings = v
+  },
 })
 
 const ffmpegPath = computed({
-  get: () => settings.ffmpeg_path ?? '',
+  get: () => settingsStore.settings?.ffmpeg_path ?? '',
   set: (v: string) => {
-    settings.ffmpeg_path = v.trim() || null
+    if (settingsStore.settings) {
+      settingsStore.settings.ffmpeg_path = v.trim() || undefined
+    }
   },
 })
 
 const ffprobePath = computed({
-  get: () => settings.ffprobe_path ?? '',
+  get: () => settingsStore.settings?.ffprobe_path ?? '',
   set: (v: string) => {
-    settings.ffprobe_path = v.trim() || null
+    if (settingsStore.settings) {
+      settingsStore.settings.ffprobe_path = v.trim() || undefined
+    }
   },
 })
 
 const hoi4Path = computed({
-  get: () => settings.hoi4_game_dir ?? '',
+  get: () => settingsStore.settings?.hoi4_game_dir ?? '',
   set: (v: string) => {
-    settings.hoi4_game_dir = v.trim() || null
+    if (settingsStore.settings) {
+      settingsStore.settings.hoi4_game_dir = v.trim() || undefined
+    }
+  },
+})
+
+const defaultProjectDir = computed({
+  get: () => settingsStore.settings?.default_project_dir ?? '',
+  set: (v: string) => {
+    if (settingsStore.settings) {
+      settingsStore.settings.default_project_dir = v.trim() || undefined
+    }
   },
 })
 
@@ -181,12 +243,17 @@ const themeOptions = [
 ]
 
 onMounted(async () => {
-  const saved = await invokeCommand<Settings>('get_settings')
-  Object.assign(settings, saved)
+  await settingsStore.loadSettings()
 })
 
 async function save() {
-  await run('save_settings', { settings }, { successMsg: '设置已保存' })
+  saving.value = true
+  try {
+    await settingsStore.saveSettings(settings.value)
+    logger.info('Settings saved')
+  } finally {
+    saving.value = false
+  }
 }
 
 async function openLogFolder() {
