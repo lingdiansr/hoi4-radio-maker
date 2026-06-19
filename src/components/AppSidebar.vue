@@ -138,6 +138,17 @@
             placeholder="可选"
             prepend-inner-icon="mdi-account"
             hide-details="auto"
+            class="mb-4"
+          />
+          <v-combobox
+            v-model="form.tags"
+            label="标签"
+            placeholder="输入后按回车添加"
+            prepend-inner-icon="mdi-tag-multiple"
+            multiple
+            chips
+            clearable
+            hide-details="auto"
           />
         </v-card-text>
 
@@ -191,12 +202,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore, type Project } from '@/stores/project'
+import { useSettingsStore } from '@/stores/settings'
 import PathField from '@/components/PathField.vue'
 
 const projectStore = useProjectStore()
+const settingsStore = useSettingsStore()
 const router = useRouter()
 const route = useRoute()
 
@@ -209,6 +222,7 @@ const form = reactive({
   supported_version: '*',
   output_dir: '',
   author: '',
+  tags: ['Sound'],
 })
 
 function required(v: string) {
@@ -217,6 +231,20 @@ function required(v: string) {
 
 onMounted(() => {
   projectStore.loadProjects()
+  settingsStore.loadSettings()
+})
+
+watch(showCreateDialog, async (visible) => {
+  if (!visible) return
+  await settingsStore.loadSettings()
+  const s = settingsStore.settings
+  if (!s) return
+  form.name = 'My Radio Mod'
+  form.version = s.default_version || '0.1.0'
+  form.supported_version = settingsStore.effectiveSupportedVersion || '*'
+  form.author = s.default_author || ''
+  form.tags = s.default_tags.length ? [...s.default_tags] : ['Sound']
+  form.output_dir = await settingsStore.getDefaultProjectDir()
 })
 
 function isProjectActive(id: string) {
@@ -224,10 +252,13 @@ function isProjectActive(id: string) {
 }
 
 async function handleCreate() {
-  if (!form.name || !form.version || !form.supported_version || !form.output_dir) return
+  if (!form.name || !form.version || !form.supported_version) return
   const p = await projectStore.createProject({
-    ...form,
-    tags: ['Sound'],
+    name: form.name,
+    version: form.version,
+    supported_version: form.supported_version,
+    output_dir: form.output_dir,
+    tags: form.tags.length ? form.tags : ['Sound'],
     author: form.author.trim() || undefined,
   })
   if (p) {
