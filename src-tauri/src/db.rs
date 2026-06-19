@@ -34,6 +34,26 @@ impl Db {
 
     /// Create tables and enable foreign-key support.
     fn migrate(&self) -> Result<()> {
+        let user_version: i32 = self
+            .conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))?;
+
+        if user_version == 0 && self.is_old_audio_schema()? {
+            tracing::warn!(
+                "detected old audio_files schema; dropping audio tables and recreating with new schema"
+            );
+            self.conn.execute_batch(
+                "
+                PRAGMA foreign_keys = OFF;
+                DROP TABLE IF EXISTS station_entries;
+                DROP TABLE IF EXISTS stations;
+                DROP TABLE IF EXISTS project_audio_files;
+                DROP TABLE IF EXISTS audio_files;
+                PRAGMA foreign_keys = ON;
+                ",
+            )?;
+        }
+
         self.conn.execute_batch(
             "
             CREATE TABLE IF NOT EXISTS projects (
@@ -98,9 +118,30 @@ impl Db {
             );
 
             PRAGMA foreign_keys = ON;
+            PRAGMA user_version = 1;
             ",
         )?;
         Ok(())
+    }
+
+    /// Detects the pre-global-audio-library schema where `audio_files`
+    /// contained an embedded `project_id` and no `source_hash` column.
+    fn is_old_audio_schema(&self) -> Result<bool> {
+        let count: i32 = self.conn.query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'table' AND name = 'audio_files'",
+            [],
+            |row| row.get(0),
+        )?;
+        if count == 0 {
+            return Ok(false);
+        }
+        let has_source_hash: i32 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('audio_files') WHERE name = 'source_hash'",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(has_source_hash == 0)
     }
 
     /// Insert a new project and return the created record.
