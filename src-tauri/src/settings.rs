@@ -9,6 +9,7 @@ pub struct SettingsResponse {
     #[serde(flatten)]
     pub settings: Settings,
     pub detected_supported_version: Option<String>,
+    pub ffmpeg_available: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

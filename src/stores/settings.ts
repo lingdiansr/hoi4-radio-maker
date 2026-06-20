@@ -18,11 +18,13 @@ export interface Settings {
 
 export interface SettingsResponse extends Settings {
   detected_supported_version?: string
+  ffmpeg_available: boolean
 }
 
 export const useSettingsStore = defineStore('settings', () => {
   const settings = ref<Settings | null>(null)
   const detectedSupportedVersion = ref<string | undefined>(undefined)
+  const ffmpegAvailable = ref(true)
   const loading = ref(false)
 
   const effectiveSupportedVersion = computed(() => {
@@ -34,9 +36,10 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       const resp = await invokeCommand<SettingsResponse>('get_settings')
       logger.info(`settings store: loaded settings: ${JSON.stringify(resp)}`)
-      const { detected_supported_version, ...rest } = resp
+      const { detected_supported_version, ffmpeg_available, ...rest } = resp
       settings.value = rest
       detectedSupportedVersion.value = detected_supported_version
+      ffmpegAvailable.value = ffmpeg_available
       return resp
     } finally {
       loading.value = false
@@ -61,6 +64,7 @@ export const useSettingsStore = defineStore('settings', () => {
   return {
     settings,
     detectedSupportedVersion,
+    ffmpegAvailable,
     loading,
     effectiveSupportedVersion,
     loadSettings,

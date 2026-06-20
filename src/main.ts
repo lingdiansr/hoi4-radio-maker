@@ -6,14 +6,29 @@ import vuetify from '@/plugins/vuetify'
 import App from './App.vue'
 import router from './router'
 
+function serializeArg(arg: unknown): string {
+  if (arg instanceof Error) {
+    return `${arg.toString()}\n${arg.stack || ''}`
+  }
+  if (typeof arg === 'string') {
+    return arg
+  }
+  try {
+    return JSON.stringify(arg)
+  } catch {
+    return String(arg)
+  }
+}
+
 function forwardConsole(
   fnName: 'log' | 'debug' | 'info' | 'warn' | 'error',
   logger: (message: string) => Promise<void>
 ) {
   const original = console[fnName]
-  console[fnName] = (message: unknown) => {
-    original(message)
-    logger(String(message))
+  console[fnName] = (...args: unknown[]) => {
+    original(...args)
+    const message = args.map(serializeArg).join(' ')
+    logger(message)
   }
 }
 

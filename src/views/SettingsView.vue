@@ -108,8 +108,15 @@
               item-title="label"
               item-value="value"
               prepend-inner-icon="mdi-palette"
-              class="mb-6"
+              class="mb-4"
               hide-details="auto"
+            />
+            <v-alert
+              v-if="!settingsStore.ffmpegAvailable"
+              type="warning"
+              variant="tonal"
+              class="mb-6"
+              text="未检测到 ffmpeg / ffprobe。请安装 ffmpeg 或在上方手动指定路径，否则无法导入音频。"
             />
             <v-btn
               color="primary"

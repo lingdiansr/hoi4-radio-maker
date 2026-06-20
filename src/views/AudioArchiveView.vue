@@ -311,11 +311,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useAudioStore, type AudioFile } from '@/stores/audio'
+import { useToastStore } from '@/stores/toast'
 import AudioImporter from '@/components/AudioImporter.vue'
 import AudioEditDialog from '@/components/AudioEditDialog.vue'
 import BatchAudioEditDialog from '@/components/BatchAudioEditDialog.vue'
 
 const audioStore = useAudioStore()
+const toast = useToastStore()
 const search = ref('')
 const selectedTag = ref<string | null>(null)
 const showDeleteDialog = ref(false)
@@ -415,17 +417,29 @@ function confirmBatchDelete() {
 
 async function handleBatchDelete() {
   batchDeleting.value = true
+  let succeeded = 0
+  let failed = 0
   try {
     const ids = [...selectedIds.value]
     for (const id of ids) {
       try {
         await audioStore.deleteAudio(id)
+        succeeded++
       } catch (err) {
-        // Continue deleting others; referenced files will fail individually
+        failed++
       }
     }
     selectedIds.value = []
     showBatchDeleteDialog.value = false
+    if (failed > 0) {
+      toast.display(
+        `已删除 ${succeeded} 条音频，${failed} 条因被项目引用或出现错误未删除`,
+        'error',
+        5000
+      )
+    } else {
+      toast.display(`成功删除 ${succeeded} 条音频`, 'success', 3000)
+    }
   } finally {
     batchDeleting.value = false
   }

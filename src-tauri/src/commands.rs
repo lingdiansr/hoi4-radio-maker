@@ -43,12 +43,18 @@ pub async fn create_project(
 
     let mod_descriptor = write_mod_descriptor(&req, &output_dir).await?;
 
+    let author = req
+        .author
+        .clone()
+        .filter(|s| !s.is_empty())
+        .or_else(detect_system_user);
+
     let db_req = CreateProjectRequest {
         name: req.name.clone(),
         version: req.version.clone(),
         supported_version: req.supported_version.clone(),
         tags: req.tags.clone(),
-        author: req.author.clone(),
+        author,
         output_dir,
     };
 
@@ -87,6 +93,13 @@ fn resolve_output_dir(db: &Db, req: &CreateProjectRequest) -> Result<PathBuf> {
 
     let folder_name = sanitize_folder_name(&req.name);
     Ok(base.join("mod").join(&folder_name))
+}
+
+fn detect_system_user() -> Option<String> {
+    std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .ok()
+        .filter(|s| !s.is_empty())
 }
 
 fn sanitize_folder_name(name: &str) -> String {
@@ -155,6 +168,21 @@ pub fn update_project(
     req: UpdateProjectRequest,
 ) -> Result<Project> {
     let db = lock_db(&state)?;
+
+    // output_dir is immutable after project creation; preserve the existing value.
+    let existing = db
+        .get_project(&id)?
+        .ok_or_else(|| Hoi4RadioError::ProjectNotFound { id: id.clone() })?;
+
+    let req = UpdateProjectRequest {
+        name: req.name,
+        version: req.version,
+        supported_version: req.supported_version,
+        tags: req.tags,
+        author: req.author,
+        output_dir: existing.output_dir,
+    };
+
     db.update_project(&id, &req)
 }
 
@@ -506,9 +534,7 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<SettingsResponse> {
         settings.save(&db)?;
     }
 
-    if settings.ffmpeg_path.is_none() || settings.ffprobe_path.is_none() {
-        return Err(Hoi4RadioError::FfmpegNotFound);
-    }
+    let ffmpeg_available = settings.ffmpeg_path.is_some() && settings.ffprobe_path.is_some();
 
     let detected_supported_version = settings
         .hoi4_game_dir
@@ -519,6 +545,7 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<SettingsResponse> {
     Ok(SettingsResponse {
         settings,
         detected_supported_version,
+        ffmpeg_available,
     })
 }
 

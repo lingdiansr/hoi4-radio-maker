@@ -217,7 +217,7 @@ async function save() {
     await run(
       'update_project',
       { id: p.id, req: { ...form } },
-      { successMsg: '项目设置已保存' }
+      { successMsg: '项目信息已保存' }
     )
   } finally {
     saving.value = false
