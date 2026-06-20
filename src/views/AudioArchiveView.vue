@@ -84,6 +84,16 @@
             >
               批量编辑 ({{ selectedIds.length }})
             </v-btn>
+            <v-btn
+              v-if="selectedIds.length"
+              color="error"
+              variant="tonal"
+              size="small"
+              prepend-icon="mdi-delete-sweep"
+              @click="confirmBatchDelete"
+            >
+              删除选中 ({{ selectedIds.length }})
+            </v-btn>
           </v-col>
         </v-row>
       </v-card-text>
@@ -232,6 +242,38 @@
       @saved="onImported"
     />
 
+    <!-- Batch Delete Confirmation Dialog -->
+    <v-dialog v-model="showBatchDeleteDialog" max-width="460" class="bureau-dialog">
+      <v-card class="dialog-card">
+        <div class="dialog-accent dialog-accent--danger" />
+        <v-card-title class="dialog-title pa-6 pb-2">
+          <div class="d-flex align-center gap-3">
+            <v-icon color="error" size="28">mdi-alert-circle</v-icon>
+            <div>
+              <div class="text-mono text-caption text-secondary">BATCH DELETION</div>
+              <div class="text-display text-h5">批量删除音频</div>
+            </div>
+          </div>
+        </v-card-title>
+
+        <v-card-text class="pa-6 pt-4 text-body-1">
+          确定要从全局音频库中删除选中的 <strong class="text-primary">{{ selectedIds.length }}</strong> 条音频吗？
+          <br><br>
+          <span class="text-error">警告：</span>如果音频仍被任何项目引用，将无法删除。
+        </v-card-text>
+
+        <v-divider opacity="0.2" />
+
+        <v-card-actions class="pa-6">
+          <v-spacer />
+          <v-btn variant="text" class="action-btn" @click="showBatchDeleteDialog = false">取消</v-btn>
+          <v-btn color="error" class="action-btn" prepend-icon="mdi-delete-outline" :loading="batchDeleting" @click="handleBatchDelete">
+            删除
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Delete Confirmation Dialog -->
     <v-dialog v-model="showDeleteDialog" max-width="420" class="bureau-dialog">
       <v-card class="dialog-card">
@@ -277,12 +319,14 @@ const audioStore = useAudioStore()
 const search = ref('')
 const selectedTag = ref<string | null>(null)
 const showDeleteDialog = ref(false)
+const showBatchDeleteDialog = ref(false)
 const showEditDialog = ref(false)
 const showBatchEdit = ref(false)
 const audioToDelete = ref<AudioFile | null>(null)
 const audioToEdit = ref<AudioFile | null>(null)
 const viewMode = ref<'grid' | 'list'>('grid')
 const selectedIds = ref<string[]>([])
+const batchDeleting = ref(false)
 
 onMounted(() => {
   audioStore.loadAllAudio()
@@ -363,6 +407,28 @@ function openEdit(audio: AudioFile) {
 function confirmDelete(audio: AudioFile) {
   audioToDelete.value = audio
   showDeleteDialog.value = true
+}
+
+function confirmBatchDelete() {
+  showBatchDeleteDialog.value = true
+}
+
+async function handleBatchDelete() {
+  batchDeleting.value = true
+  try {
+    const ids = [...selectedIds.value]
+    for (const id of ids) {
+      try {
+        await audioStore.deleteAudio(id)
+      } catch (err) {
+        // Continue deleting others; referenced files will fail individually
+      }
+    }
+    selectedIds.value = []
+    showBatchDeleteDialog.value = false
+  } finally {
+    batchDeleting.value = false
+  }
 }
 
 async function handleDelete() {
