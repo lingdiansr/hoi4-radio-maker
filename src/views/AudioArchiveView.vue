@@ -49,6 +49,32 @@
             </v-chip-group>
             <v-spacer />
             <v-btn
+              variant="text"
+              size="small"
+              prepend-icon="mdi-select-all"
+              @click="selectAll"
+            >
+              全选
+            </v-btn>
+            <v-btn
+              variant="text"
+              size="small"
+              prepend-icon="mdi-select-inverse"
+              @click="invertSelection"
+            >
+              反选
+            </v-btn>
+            <v-btn
+              v-if="selectedIds.length"
+              variant="text"
+              size="small"
+              prepend-icon="mdi-select-remove"
+              @click="selectedIds = []"
+            >
+              清除选择
+            </v-btn>
+            <v-divider v-if="selectedIds.length" vertical class="mx-2" />
+            <v-btn
               v-if="selectedIds.length > 1"
               color="primary"
               variant="tonal"
@@ -57,14 +83,6 @@
               @click="showBatchEdit = true"
             >
               批量编辑 ({{ selectedIds.length }})
-            </v-btn>
-            <v-btn
-              v-if="selectedIds.length"
-              variant="text"
-              size="small"
-              @click="selectedIds = []"
-            >
-              清除选择
             </v-btn>
           </v-col>
         </v-row>
@@ -325,6 +343,16 @@ function setSelected(id: string, value: boolean | null) {
 
 function toggleSelect(id: string) {
   setSelected(id, !isSelected(id))
+}
+
+function selectAll() {
+  const all = filteredAudio.value.map((a) => a.id)
+  selectedIds.value = Array.from(new Set([...selectedIds.value, ...all]))
+}
+
+function invertSelection() {
+  const all = filteredAudio.value.map((a) => a.id)
+  selectedIds.value = all.filter((id) => !selectedIds.value.includes(id))
 }
 
 function openEdit(audio: AudioFile) {
