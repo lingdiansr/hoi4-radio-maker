@@ -1,5 +1,5 @@
 <template>
-  <v-main class="d-flex align-center justify-center bureau-hero">
+  <div class="d-flex align-center justify-center bureau-hero">
     <div class="hero-content text-center pa-8">
       <div class="hero-badge mb-6">
         <span class="text-mono text-caption">BROADCAST BUREAU</span>
@@ -20,7 +20,7 @@
         新建广播项目
       </v-btn>
     </div>
-  </v-main>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -32,7 +32,9 @@ function emitCreate() {
 <style scoped>
 .bureau-hero {
   position: relative;
-  min-height: 100vh;
+  min-height: 100%;
+  height: 100%;
+  width: 100%;
 }
 
 .bureau-hero::before {
