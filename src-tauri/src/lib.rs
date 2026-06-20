@@ -45,6 +45,11 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_playwright::init());
     }
 
+    #[cfg(feature = "dev-mcp-bridge")]
+    {
+        builder = builder.plugin(tauri_plugin_mcp_bridge::init());
+    }
+
     let app_dir = dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("hoi4-radio-maker");

@@ -11,6 +11,7 @@
         "@mdi/font": "^7.4.47",
         "@tauri-apps/api": "^2",
         "@tauri-apps/plugin-dialog": "^2",
+        "@tauri-apps/plugin-log": "^2.8.0",
         "@tauri-apps/plugin-opener": "^2",
         "pinia": "^3.0.4",
         "vue": "^3.5.13",
@@ -18,6 +19,9 @@
         "vuetify": "^4.1.2",
       },
       "devDependencies": {
+        "@hypothesi/tauri-plugin-mcp-bridge": "^0.11.2",
+        "@playwright/test": "^1.61.0",
+        "@srsholmes/tauri-playwright": "^0.4.0",
         "@tauri-apps/cli": "^2",
         "@vitejs/plugin-vue": "^5.2.1",
         "typescript": "~5.6.2",
@@ -95,6 +99,8 @@
 
     "@fontsource/source-serif-4": ["@fontsource/source-serif-4@5.2.9", "https://registry.npmmirror.com/@fontsource/source-serif-4/-/source-serif-4-5.2.9.tgz", {}, "sha512-er/Pym9emsEVJNf947umJ4kXarXfsiN6CN7kTYinefKRaHLwiquiiHOZvKvxWgkV8JMCf3pV3g0NcsPFpVCH9w=="],
 
+    "@hypothesi/tauri-plugin-mcp-bridge": ["@hypothesi/tauri-plugin-mcp-bridge@0.11.2", "https://registry.npmmirror.com/@hypothesi/tauri-plugin-mcp-bridge/-/tauri-plugin-mcp-bridge-0.11.2.tgz", { "peerDependencies": { "@tauri-apps/api": "^2.0.0" } }, "sha512-1Z1Oe03CDQ2R/LAd5ZECVlzv0qpEZgOhtKIU4PRYztD25axT+yDxhPa8a7l5Z9yqgmV7xr32XijF2paWiGFZkw=="],
+
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "https://registry.npmmirror.com/@jridgewell/gen-mapping/-/gen-mapping-0.3.13.tgz", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
 
     "@jridgewell/remapping": ["@jridgewell/remapping@2.3.5", "https://registry.npmmirror.com/@jridgewell/remapping/-/remapping-2.3.5.tgz", { "dependencies": { "@jridgewell/gen-mapping": "^0.3.5", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-LI9u/+laYG4Ds1TDKSJW2YPrIlcVYOwi2fUC6xB43lueCjgxV4lffOCZCtYFiH6TNOX+tQKXx97T4IKHbhyHEQ=="],
@@ -106,6 +112,8 @@
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "https://registry.npmmirror.com/@jridgewell/trace-mapping/-/trace-mapping-0.3.31.tgz", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
     "@mdi/font": ["@mdi/font@7.4.47", "https://registry.npmmirror.com/@mdi/font/-/font-7.4.47.tgz", {}, "sha512-43MtGpd585SNzHZPcYowu/84Vz2a2g31TvPMTm9uTiCSWzaheQySUcSyUH/46fPnuPQWof2yd0pGBtzee/IQWw=="],
+
+    "@playwright/test": ["@playwright/test@1.61.0", "https://registry.npmmirror.com/@playwright/test/-/test-1.61.0.tgz", { "dependencies": { "playwright": "1.61.0" }, "bin": { "playwright": "cli.js" } }, "sha512-cKA5B6lpFEMyMGjxF54QihfYpB4FkEGH+qZhtArDEG+wezQAJY8Pq6C7T1SjWz+FFzt3TbyoXBQYk/0292TdJA=="],
 
     "@rollup/rollup-android-arm-eabi": ["@rollup/rollup-android-arm-eabi@4.62.0", "https://registry.npmmirror.com/@rollup/rollup-android-arm-eabi/-/rollup-android-arm-eabi-4.62.0.tgz", { "os": "android", "cpu": "arm" }, "sha512-IPIQ55ythEHkfEd9jMEi32OQ7SxURsGA43JI22lj01OLZNt2NUbJX8YUHxkVWyQ6daHPNn0truF5nSj3DQp6YQ=="],
 
@@ -157,6 +165,8 @@
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.62.0", "https://registry.npmmirror.com/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.62.0.tgz", { "os": "win32", "cpu": "x64" }, "sha512-5L+T1fMX4RIEBoZzT0+sQ0PhTS36NULFmMXtl1TZo44TMAROIMHbZufSOjVWt/Y622BtxgxtaNOokbTDvfsrZA=="],
 
+    "@srsholmes/tauri-playwright": ["@srsholmes/tauri-playwright@0.4.0", "https://registry.npmmirror.com/@srsholmes/tauri-playwright/-/tauri-playwright-0.4.0.tgz", { "peerDependencies": { "@playwright/test": "^1.40.0" } }, "sha512-9BOihWHbFOZl0CHlqU4vopZi967VtYAUsThSdTJDV+E+2F14TWkNaqQf8ApUF9pf+QjMVxxg57i0XjxFXs5vTg=="],
+
     "@tauri-apps/api": ["@tauri-apps/api@2.11.0", "https://registry.npmmirror.com/@tauri-apps/api/-/api-2.11.0.tgz", {}, "sha512-7CinYODhky9lmO23xHnUFv0Xt43fbtWMyxZcLcRBlFkcgXKuEirBvHpmtJ89YMhyeGcq20Wuc47Fa4XjyniywA=="],
 
     "@tauri-apps/cli": ["@tauri-apps/cli@2.11.2", "https://registry.npmmirror.com/@tauri-apps/cli/-/cli-2.11.2.tgz", { "optionalDependencies": { "@tauri-apps/cli-darwin-arm64": "2.11.2", "@tauri-apps/cli-darwin-x64": "2.11.2", "@tauri-apps/cli-linux-arm-gnueabihf": "2.11.2", "@tauri-apps/cli-linux-arm64-gnu": "2.11.2", "@tauri-apps/cli-linux-arm64-musl": "2.11.2", "@tauri-apps/cli-linux-riscv64-gnu": "2.11.2", "@tauri-apps/cli-linux-x64-gnu": "2.11.2", "@tauri-apps/cli-linux-x64-musl": "2.11.2", "@tauri-apps/cli-win32-arm64-msvc": "2.11.2", "@tauri-apps/cli-win32-ia32-msvc": "2.11.2", "@tauri-apps/cli-win32-x64-msvc": "2.11.2" }, "bin": { "tauri": "tauri.js" } }, "sha512-bk3HemqvGRoy+5D/dVMUQHKMYLglD0jVnMm/0iGMH6ufZ+p8r14m6BpIixwij3PBvZdvORUp1YifTD8QxVZ1Nw=="],
@@ -184,6 +194,8 @@
     "@tauri-apps/cli-win32-x64-msvc": ["@tauri-apps/cli-win32-x64-msvc@2.11.2", "https://registry.npmmirror.com/@tauri-apps/cli-win32-x64-msvc/-/cli-win32-x64-msvc-2.11.2.tgz", { "os": "win32", "cpu": "x64" }, "sha512-d2JchlFIpZevZVReyqhQOekJmb1UH3rhZ5VX6sH3ty9ETE0TKQavpihvoScUXfKKpW6HZC0MrFGRU0ZtD+w3gA=="],
 
     "@tauri-apps/plugin-dialog": ["@tauri-apps/plugin-dialog@2.7.1", "https://registry.npmmirror.com/@tauri-apps/plugin-dialog/-/plugin-dialog-2.7.1.tgz", { "dependencies": { "@tauri-apps/api": "^2.11.0" } }, "sha512-OK1UBXYt+ojcmxMktzzuyonYIFta8CmAASpX+CA+DTGK24KlHjhYI6x2iOJ/TjZF4N7/ACK1oFmEOjIY9IhzOQ=="],
+
+    "@tauri-apps/plugin-log": ["@tauri-apps/plugin-log@2.8.0", "https://registry.npmmirror.com/@tauri-apps/plugin-log/-/plugin-log-2.8.0.tgz", { "dependencies": { "@tauri-apps/api": "^2.8.0" } }, "sha512-a+7rOq3MJwpTOLLKbL8d0qGZ85hgHw5pNOWusA9o3cf7cEgtYHiGY/+O8fj8MvywQIGqFv0da2bYQDlrqLE7rw=="],
 
     "@tauri-apps/plugin-opener": ["@tauri-apps/plugin-opener@2.5.4", "https://registry.npmmirror.com/@tauri-apps/plugin-opener/-/plugin-opener-2.5.4.tgz", { "dependencies": { "@tauri-apps/api": "^2.11.0" } }, "sha512-1HnPkb+AmgO29HBazm4uPLKB+r7zzcTBW1d0fyYp1uP+jwtpoiNDGKMMzz58SFp49nOIrxdE3aUJtT57lfO9CQ=="],
 
@@ -305,6 +317,10 @@
 
     "pkg-types": ["pkg-types@2.3.1", "https://registry.npmmirror.com/pkg-types/-/pkg-types-2.3.1.tgz", { "dependencies": { "confbox": "^0.2.4", "exsolve": "^1.0.8", "pathe": "^2.0.3" } }, "sha512-y+ichcgc2LrADuhLNAx8DFjVfgz91pRxfZdI3UDhxHvcVEZsenLO+7XaU5vOp0u/7V/wZ+plyuQxtrDlZJ+yeg=="],
 
+    "playwright": ["playwright@1.61.0", "https://registry.npmmirror.com/playwright/-/playwright-1.61.0.tgz", { "dependencies": { "playwright-core": "1.61.0" }, "optionalDependencies": { "fsevents": "2.3.2" }, "bin": { "playwright": "cli.js" } }, "sha512-Z+7BeeqQPRRzklHsVFP4KTGIyMxKUmfeRA4WisM6G3/XW6nwGeX6fX9qYaDa+CiUqpOkb2f6X3nar05R3kSuJQ=="],
+
+    "playwright-core": ["playwright-core@1.61.0", "https://registry.npmmirror.com/playwright-core/-/playwright-core-1.61.0.tgz", { "bin": { "playwright-core": "cli.js" } }, "sha512-caX7TrY3Ml6egyDX0WUcTHDxodl/b51y5wJOdCEA36QviK/s2g081hvmGs8eaE3DWb6NYZQ6BjO/QkNRPenoPA=="],
+
     "postcss": ["postcss@8.5.15", "https://registry.npmmirror.com/postcss/-/postcss-8.5.15.tgz", { "dependencies": { "nanoid": "^3.3.12", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-FfR8sjd4em2T6fb3I2MwAJU7HWVMr9zba+enmQeeWFfCbm+UOC/0X4DS8XtpUTMwWMGbjKYP7xjfNekzyGmB3A=="],
 
     "quansync": ["quansync@0.2.11", "https://registry.npmmirror.com/quansync/-/quansync-0.2.11.tgz", {}, "sha512-AifT7QEbW9Nri4tAwR5M/uzpBuqfZf+zwaEM/QkzEjj7NBuFD2rBuy0K3dE+8wltbezDV7JMA0WfnCPYRSYbXA=="],
@@ -356,6 +372,8 @@
     "ast-walker-scope/@babel/types": ["@babel/types@7.29.7", "https://registry.npmmirror.com/@babel/types/-/types-7.29.7.tgz", { "dependencies": { "@babel/helper-string-parser": "^7.29.7", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA=="],
 
     "mlly/pkg-types": ["pkg-types@1.3.1", "https://registry.npmmirror.com/pkg-types/-/pkg-types-1.3.1.tgz", { "dependencies": { "confbox": "^0.1.8", "mlly": "^1.7.4", "pathe": "^2.0.1" } }, "sha512-/Jm5M4RvtBFVkKWRu2BLUTNP8/M2a+UwuAX+ae4770q1qVGtfjG+WTCupoZixokjmHiry8uI+dlY8KXYV5HVVQ=="],
+
+    "playwright/fsevents": ["fsevents@2.3.2", "https://registry.npmmirror.com/fsevents/-/fsevents-2.3.2.tgz", { "os": "darwin" }, "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA=="],
 
     "vue-router/@vue/devtools-api": ["@vue/devtools-api@8.1.3", "https://registry.npmmirror.com/@vue/devtools-api/-/devtools-api-8.1.3.tgz", { "dependencies": { "@vue/devtools-kit": "^8.1.3" } }, "sha512-73NMCvxXh8Hyozc/jiwqTFWVcCMyi11U1zmrq4DoukQJnuo8JHt6FsNu4HdeUDa8SpIp5vb7Q22GWgIq0efsXg=="],
 

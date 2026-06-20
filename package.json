@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev --features dev-mcp-bridge",
+    "tauri:dev:debug": "tauri dev --features dev-mcp-bridge"
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "^5.2.8",
@@ -24,6 +26,7 @@
     "vuetify": "^4.1.2"
   },
   "devDependencies": {
+    "@hypothesi/tauri-plugin-mcp-bridge": "^0.11.2",
     "@playwright/test": "^1.61.0",
     "@srsholmes/tauri-playwright": "^0.4.0",
     "@tauri-apps/cli": "^2",
