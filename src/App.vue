@@ -55,6 +55,7 @@ onMounted(async () => {
     radial-gradient(ellipse at 20% 0%, rgba(255, 176, 32, 0.06) 0%, transparent 45%),
     radial-gradient(ellipse at 80% 100%, rgba(143, 158, 138, 0.05) 0%, transparent 40%),
     #12100e !important;
+  background-repeat: no-repeat;
   color: #efebe3;
   font-family: var(--font-body);
 }
@@ -66,7 +67,12 @@ onMounted(async () => {
   z-index: 9999;
   opacity: 0.04;
   mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  background-size: 512px 512px;
+  background-repeat: repeat;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .text-display {
@@ -120,6 +126,14 @@ onMounted(async () => {
     0 24px 48px rgba(0, 0, 0, 0.4),
     0 0 0 1px rgba(255, 176, 32, 0.08);
 }
+
+/* Flex gap utilities (Vuetify 3 does not enable gap-* by default) */
+.gap-1 { gap: 4px !important; }
+.gap-2 { gap: 8px !important; }
+.gap-3 { gap: 12px !important; }
+.gap-4 { gap: 16px !important; }
+.gap-5 { gap: 20px !important; }
+.gap-6 { gap: 24px !important; }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {

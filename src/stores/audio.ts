@@ -54,40 +54,6 @@ export const useAudioStore = defineStore('audio', () => {
     logger.info(`audio store: loaded ${allAudioFiles.value.length} audio file(s)`)
   }
 
-  async function importGlobalBatch(paths: string[]): Promise<BatchImportResult> {
-    importing.value = true
-    logger.info(`audio store: starting global import of ${paths.length} file(s)`)
-    try {
-      const result = await invokeCommand<BatchImportResult>('import_audio_batch', {
-        paths,
-      })
-      logger.info(
-        `audio store: import returned created=${result.created.length} existing=${result.existing.length}`
-      )
-      await loadAllAudio()
-      return result
-    } catch (err) {
-      logger.error(`audio store: global import failed: ${JSON.stringify(err)}`)
-      throw err
-    } finally {
-      importing.value = false
-    }
-  }
-
-  async function importBatch(projectId: string, paths: string[]): Promise<BatchImportResult> {
-    importing.value = true
-    try {
-      const result = await invokeCommand<BatchImportResult>('import_audio_batch', {
-        projectId,
-        paths,
-      })
-      await loadAudio(projectId)
-      return result
-    } finally {
-      importing.value = false
-    }
-  }
-
   async function addToProject(projectId: string, audioIds: string[]) {
     await invokeCommand('add_audio_to_project', {
       projectId,
@@ -138,8 +104,6 @@ export const useAudioStore = defineStore('audio', () => {
     importing,
     loadAudio,
     loadAllAudio,
-    importGlobalBatch,
-    importBatch,
     addToProject,
     removeFromProject,
     deleteAudio,

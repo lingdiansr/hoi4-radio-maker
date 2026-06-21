@@ -13,8 +13,12 @@ pub mod validator;
 
 use crate::db::Db;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex};
 use tauri_plugin_log::{Target, TargetKind};
+
+#[cfg(feature = "dev-mcp-bridge")]
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -58,7 +62,10 @@ pub fn run() {
     let db = Db::open(&db_path).expect("failed to open database");
 
     builder
-        .manage(commands::AppState { db: Mutex::new(db) })
+        .manage(commands::AppState {
+            db: Mutex::new(db),
+            cancel_import: Arc::new(AtomicBool::new(false)),
+        })
         .invoke_handler(tauri::generate_handler![
             commands::create_project,
             commands::list_projects,
@@ -73,6 +80,7 @@ pub fn run() {
             commands::update_audio_file,
             commands::batch_update_audio_files,
             commands::import_audio_batch,
+            commands::cancel_import,
             commands::list_stations,
             commands::create_station,
             commands::delete_station,
@@ -84,6 +92,13 @@ pub fn run() {
             commands::save_settings,
             commands::get_default_project_dir,
         ])
+        .setup(|_app| {
+            #[cfg(feature = "dev-mcp-bridge")]
+            {
+                _app.add_capability(include_str!("../capabilities-dev/dev-mcp-bridge.json"))?;
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

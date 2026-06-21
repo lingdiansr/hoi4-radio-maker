@@ -41,15 +41,24 @@ function emitCreate() {
   content: '';
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle at 50% 50%, rgba(255, 176, 32, 0.08) 0%, transparent 50%),
-    repeating-linear-gradient(
-      90deg,
-      transparent,
-      transparent 80px,
-      rgba(255, 176, 32, 0.03) 80px,
-      rgba(255, 176, 32, 0.03) 81px
-    );
+  background: radial-gradient(circle at 50% 50%, rgba(255, 176, 32, 0.08) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.bureau-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 119px,
+    rgba(255, 176, 32, 0.015) 119px,
+    rgba(255, 176, 32, 0.015) 120px,
+    transparent 120px
+  );
+  background-size: 120px 100%;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
   pointer-events: none;
 }
 

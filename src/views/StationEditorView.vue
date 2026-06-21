@@ -84,7 +84,7 @@
                       </template>
                     </v-list-item>
                   </v-list>
-                  <v-alert v-else type="info" variant="tonal" text="该电台暂无歌曲，点击下方按钮从音频库添加" />
+                  <v-alert v-else color="secondary" variant="tonal" icon="mdi-information" text="该电台暂无歌曲，点击下方按钮从音频库添加" />
 
                   <v-divider class="my-4" opacity="0.2" />
 
@@ -217,9 +217,6 @@ function required(v: string) {
 
 onMounted(() => {
   stationStore.loadStations()
-  if (projectId.value) {
-    audioStore.loadAudio(projectId.value)
-  }
 })
 
 watch(

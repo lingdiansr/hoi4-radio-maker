@@ -127,7 +127,7 @@
             </v-card>
           </v-col>
 
-          <v-col cols="12" lg="4">
+          <v-col cols="12" lg="4" align-self="start">
             <v-card class="hint-card" variant="flat" rounded="lg">
               <v-card-text>
                 <v-icon color="primary" size="32" class="mb-2">mdi-information-outline</v-icon>
@@ -145,32 +145,63 @@
       v-model="showPicker"
       @confirm="onAudioSelected"
     />
+
+    <!-- Dirty change guard -->
+    <v-dialog v-model="showDiscardDialog" max-width="460" class="bureau-dialog" persistent>
+      <v-card class="dialog-card">
+        <div class="dialog-accent" />
+        <v-card-title class="dialog-title pa-6 pb-2">
+          <div class="d-flex align-center gap-3">
+            <v-icon color="primary" size="28">mdi-alert-circle-outline</v-icon>
+            <div>
+              <div class="text-mono text-caption text-secondary">UNSAVED CHANGES</div>
+              <div class="text-display text-h5">放弃未保存的修改？</div>
+            </div>
+          </div>
+        </v-card-title>
+
+        <v-card-text class="pa-6 pt-4 text-body-1">
+          项目信息已被修改但尚未保存。切换项目将放弃这些更改。
+        </v-card-text>
+
+        <v-divider opacity="0.2" />
+
+        <v-card-actions class="pa-6">
+          <v-spacer />
+          <v-btn variant="text" class="action-btn" @click="cancelDiscard">取消</v-btn>
+          <v-btn color="primary" class="action-btn" prepend-icon="mdi-check-circle" @click="confirmDiscard">
+            放弃修改
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, watch, ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { reactive, watch, ref, computed, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore, type UpdateProjectRequest } from '@/stores/project'
 import { useAudioStore } from '@/stores/audio'
 import { useCommand } from '@/composables/useCommand'
 import AudioPickerDialog from '@/components/AudioPickerDialog.vue'
 
 const route = useRoute()
+const router = useRouter()
 const projectStore = useProjectStore()
 const audioStore = useAudioStore()
 const { run } = useCommand()
 
 const saving = ref(false)
 const showPicker = ref(false)
+const isDirty = ref(false)
+const isSyncing = ref(false)
+const isReverting = ref(false)
+const showDiscardDialog = ref(false)
+const pendingProjectId = ref<string | null>(null)
+const previousProjectId = ref<string | null>(null)
 
 const projectId = computed(() => route.params.id as string)
-
-onMounted(() => {
-  if (projectId.value) {
-    audioStore.loadAudio(projectId.value)
-  }
-})
 
 const form = reactive<UpdateProjectRequest>({
   name: '',
@@ -195,17 +226,44 @@ function required(v: string) {
 function syncFromProject() {
   const p = projectStore.currentProject
   if (!p) return
+  isSyncing.value = true
   form.name = p.name
   form.version = p.version
   form.supported_version = p.supported_version
   form.tags = [...p.tags]
   form.author = p.author ?? undefined
   form.output_dir = p.output_dir
+  isDirty.value = false
+  nextTick(() => {
+    isSyncing.value = false
+  })
 }
 
 watch(
+  form,
+  () => {
+    if (isSyncing.value) return
+    isDirty.value = true
+  },
+  { deep: true }
+)
+
+watch(
   () => projectStore.currentProject?.id,
-  () => syncFromProject(),
+  (newId, oldId) => {
+    if (isReverting.value) return
+    if (!newId) {
+      syncFromProject()
+      return
+    }
+    if (isDirty.value) {
+      pendingProjectId.value = newId
+      previousProjectId.value = oldId ?? null
+      showDiscardDialog.value = true
+      return
+    }
+    syncFromProject()
+  },
   { immediate: true }
 )
 
@@ -219,9 +277,32 @@ async function save() {
       { id: p.id, req: { ...form } },
       { successMsg: '项目信息已保存' }
     )
+    isDirty.value = false
   } finally {
     saving.value = false
   }
+}
+
+function confirmDiscard() {
+  showDiscardDialog.value = false
+  isDirty.value = false
+  syncFromProject()
+  pendingProjectId.value = null
+}
+
+function cancelDiscard() {
+  showDiscardDialog.value = false
+  const prevId = previousProjectId.value
+  pendingProjectId.value = null
+  previousProjectId.value = null
+  if (!prevId) return
+  const prev = projectStore.projects.find((p) => p.id === prevId) ?? null
+  isReverting.value = true
+  projectStore.setCurrentProject(prev)
+  router.replace({ name: 'project', params: { id: prevId } })
+  nextTick(() => {
+    isReverting.value = false
+  })
 }
 
 async function onAudioSelected(audioIds: string[]) {
@@ -255,7 +336,6 @@ function formatDuration(seconds: number): string {
 .hint-card {
   background: rgba(255, 176, 32, 0.06);
   border: 1px solid rgba(255, 176, 32, 0.2);
-  height: 100%;
 }
 
 .ref-card {
@@ -271,5 +351,30 @@ function formatDuration(seconds: number): string {
 .ref-item:hover {
   background: rgba(255, 176, 32, 0.06) !important;
   border-color: rgba(255, 176, 32, 0.2);
+}
+
+.dialog-card {
+  background: #1a1714;
+  border: 1px solid rgba(74, 66, 56, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+
+.dialog-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ffb020 0%, rgba(255, 176, 32, 0.3) 100%);
+}
+
+.dialog-title {
+  padding-top: 28px;
+}
+
+.action-btn {
+  text-transform: none;
+  letter-spacing: 0.02em;
 }
 </style>

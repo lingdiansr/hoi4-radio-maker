@@ -51,27 +51,48 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import StationEditorView from '@/views/StationEditorView.vue'
 import ProjectSettingsView from '@/views/ProjectSettingsView.vue'
 import { useProjectStore } from '@/stores/project'
+import { useAudioStore } from '@/stores/audio'
 import { useCommand } from '@/composables/useCommand'
 import { useToastStore } from '@/stores/toast'
 
+interface ValidationReport {
+  passed: boolean
+  errors: string[]
+  warnings: string[]
+}
+
 const tab = ref('stations')
 const route = useRoute()
+const router = useRouter()
 const projectStore = useProjectStore()
+const audioStore = useAudioStore()
 const { run } = useCommand()
 const toast = useToastStore()
 
-onMounted(() => {
-  const id = route.params.id as string
+async function loadProject(id: string) {
+  if (!id) return
+  await projectStore.loadProjects()
   const found = projectStore.projects.find((p) => p.id === id)
   if (found) {
     projectStore.setCurrentProject(found)
+    await audioStore.loadAudio(id)
+  } else {
+    projectStore.setCurrentProject(null)
+    toast.display('未找到指定项目', 'error', 4000)
+    router.replace('/')
   }
-})
+}
+
+watch(
+  () => route.params.id as string,
+  (id) => loadProject(id),
+  { immediate: true }
+)
 
 async function generate() {
   if (!projectStore.currentProject) return
@@ -85,7 +106,7 @@ async function generate() {
 
 async function validate() {
   if (!projectStore.currentProject) return
-  const report = await run<any>('validate_project_mod', {
+  const report = await run<ValidationReport>('validate_project_mod', {
     projectId: projectStore.currentProject.id,
   })
   if (report) {

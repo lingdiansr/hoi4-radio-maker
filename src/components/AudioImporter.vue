@@ -9,53 +9,16 @@
     >
       {{ buttonLabel }}
     </v-btn>
-
-    <v-expand-transition>
-      <div v-if="audioStore.importing" class="progress-wrap mt-3">
-        <v-progress-linear color="primary" height="6" rounded indeterminate />
-        <div class="text-mono text-caption text-secondary mt-1">正在导入…</div>
-      </div>
-    </v-expand-transition>
-
-    <v-expand-transition>
-      <div v-if="result" class="result-wrap mt-3">
-        <v-alert
-          type="success"
-          variant="tonal"
-          density="compact"
-          rounded="lg"
-          class="result-alert"
-          :icon="false"
-        >
-          <div class="d-flex align-center gap-3">
-            <v-icon color="success">mdi-check-circle</v-icon>
-            <div>
-              <div class="text-body font-weight-medium">导入完成</div>
-              <div class="text-mono text-caption text-secondary">
-                新增 {{ result.created.length }} 首 · 已存在 {{ result.existing.length }} 首
-              </div>
-            </div>
-            <v-spacer />
-            <v-btn
-              icon="mdi-close"
-              variant="text"
-              size="small"
-              density="compact"
-              @click="result = null"
-            />
-          </div>
-        </v-alert>
-      </div>
-    </v-expand-transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
-import { useAudioStore } from '@/stores/audio'
+import { useAudioStore, type BatchImportResult } from '@/stores/audio'
+import { useImportProgressStore } from '@/stores/importProgress'
+import { invokeCommand } from '@/api/client'
 import { logger } from '@/utils/logger'
-import type { BatchImportResult } from '@/stores/audio'
 
 const props = withDefaults(defineProps<{
   mode?: 'global' | 'project'
@@ -69,14 +32,13 @@ const emit = defineEmits<{
 }>()
 
 const audioStore = useAudioStore()
-const result = ref<BatchImportResult | null>(null)
+const progress = useImportProgressStore()
 
 const buttonLabel = computed(() => {
   return props.mode === 'global' ? '导入到音频库' : '导入音频'
 })
 
 async function selectFiles() {
-  result.value = null
   const selected = await open({
     multiple: true,
     directory: false,
@@ -95,24 +57,36 @@ async function selectFiles() {
 
   logger.info(`audio importer: selected ${selected.length} file(s), mode=${props.mode}`)
 
+  const sessionId = progress.startSession(selected)
+  audioStore.importing = true
+
   try {
-    let res: BatchImportResult
-    if (props.mode === 'global') {
-      res = await audioStore.importGlobalBatch(selected)
-    } else if (props.projectId) {
-      res = await audioStore.importBatch(props.projectId, selected)
-    } else {
-      logger.warn('audio importer: project mode selected but no projectId provided')
-      return
+    const args: Record<string, unknown> = {
+      paths: selected,
+      sessionId,
     }
-    result.value = res
+    if (props.mode === 'project' && props.projectId) {
+      args.projectId = props.projectId
+    }
+
+    const res = await invokeCommand<BatchImportResult>('import_audio_batch', args)
+    if (!res) return
+
     logger.info(
       `audio importer: import finished, created=${res.created.length} existing=${res.existing.length}`
     )
+
+    if (props.mode === 'global') {
+      await audioStore.loadAllAudio()
+    } else if (props.projectId) {
+      await audioStore.loadAudio(props.projectId)
+    }
+
     emit('imported', res)
   } catch (err) {
     logger.error(`audio importer: import failed: ${JSON.stringify(err)}`)
-    result.value = null
+  } finally {
+    audioStore.importing = false
   }
 }
 </script>
@@ -126,18 +100,5 @@ async function selectFiles() {
 .import-btn {
   text-transform: none;
   letter-spacing: 0.02em;
-}
-
-.progress-wrap {
-  width: 220px;
-}
-
-.result-wrap {
-  width: 280px;
-}
-
-.result-alert {
-  background: rgba(76, 175, 80, 0.1) !important;
-  border: 1px solid rgba(76, 175, 80, 0.3);
 }
 </style>

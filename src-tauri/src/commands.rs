@@ -11,21 +11,27 @@ use crate::settings::{Settings, SettingsResponse};
 use crate::station::StationRepository;
 use crate::validator::validate_mod_output;
 use chrono::Utc;
-use futures::stream::{StreamExt, TryStreamExt};
+use futures::stream::StreamExt;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-use tauri::State;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
 /// Shared application state exposed to Tauri commands.
 pub struct AppState {
     pub db: Mutex<Db>,
+    pub cancel_import: Arc<AtomicBool>,
 }
 
 fn lock_db(state: &AppState) -> Result<std::sync::MutexGuard<'_, Db>> {
     state.db.lock().map_err(|e| Hoi4RadioError::Other {
         message: format!("database lock poisoned: {e}"),
     })
+}
+
+fn is_import_cancelled(state: &AppState) -> bool {
+    state.cancel_import.load(Ordering::SeqCst)
 }
 
 #[tauri::command]
@@ -256,6 +262,134 @@ pub fn batch_update_audio_files(
     AudioRepository::new(&db).batch_update(&ids, &req)
 }
 
+#[derive(serde::Serialize, Clone)]
+struct ImportFileEvent {
+    session_id: String,
+    path: String,
+    status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
+#[derive(serde::Serialize, Clone)]
+struct ImportPhaseEvent {
+    session_id: String,
+    phase: String,
+    current: usize,
+    total: usize,
+}
+
+#[derive(serde::Serialize, Clone)]
+struct ImportStartedEvent {
+    session_id: String,
+    total: usize,
+    files: Vec<ImportFileEvent>,
+}
+
+#[derive(serde::Serialize, Clone)]
+struct ImportResultEvent {
+    session_id: String,
+    created: Vec<AudioFile>,
+    existing: Vec<AudioFile>,
+    failed: Vec<ImportFailedFile>,
+}
+
+#[derive(serde::Serialize, Clone)]
+struct ImportFailedFile {
+    path: String,
+    message: String,
+}
+
+fn emit_import_event(app: &AppHandle, event: &str, payload: impl serde::Serialize + Clone) {
+    if let Err(e) = app.emit(event, payload) {
+        tracing::warn!(error = %e, event = %event, "failed to emit import event");
+    }
+}
+
+fn emit_import_file(
+    app: &AppHandle,
+    session_id: &str,
+    path: impl Into<String>,
+    status: &str,
+    message: Option<String>,
+) {
+    emit_import_event(
+        app,
+        "import:file",
+        ImportFileEvent {
+            session_id: session_id.to_string(),
+            path: path.into(),
+            status: status.to_string(),
+            message,
+        },
+    );
+}
+
+fn emit_import_phase(
+    app: &AppHandle,
+    session_id: &str,
+    phase: &str,
+    current: usize,
+    total: usize,
+) {
+    emit_import_event(
+        app,
+        "import:phase",
+        ImportPhaseEvent {
+            session_id: session_id.to_string(),
+            phase: phase.to_string(),
+            current,
+            total,
+        },
+    );
+}
+
+#[tauri::command]
+pub fn cancel_import(state: State<'_, AppState>) -> Result<()> {
+    tracing::info!("import cancellation requested");
+    state.cancel_import.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+async fn transcode_one(
+    source_path: PathBuf,
+    source_hash: String,
+    audio_store_dir: &Path,
+    ffmpeg_path: Option<&str>,
+    ffprobe_path: Option<&str>,
+) -> Result<AudioFile> {
+    let metadata = analyze_audio(&source_path, ffprobe_path).await?;
+    let id = format!("audio_{}", Uuid::new_v4().to_string().replace('-', ""));
+    let ogg_filename = format!("{}.ogg", id);
+    let ogg_path = audio_store_dir.join(&ogg_filename);
+
+    transcode_to_ogg(&source_path, &ogg_path, ffmpeg_path).await?;
+
+    let title = source_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| id.clone());
+
+    let now = Utc::now();
+    Ok(AudioFile {
+        id,
+        source_hash,
+        title,
+        artist: None,
+        source_path: source_path.clone(),
+        ogg_filename,
+        duration_secs: metadata.duration_secs,
+        sample_rate: metadata.sample_rate,
+        channels: metadata.channels,
+        volume: 0.75,
+        tags: vec![],
+        notes: None,
+        created_at: now,
+        updated_at: now,
+    })
+}
+
 /// Batch import audio files into the global library.
 ///
 /// If `project_id` is provided, the imported/duplicate audio files are also
@@ -263,6 +397,7 @@ pub fn batch_update_audio_files(
 #[tauri::command]
 pub async fn import_audio_batch(
     state: State<'_, AppState>,
+    app: AppHandle,
     paths: Vec<String>,
     project_id: Option<String>,
 ) -> Result<BatchImportResult> {
@@ -277,6 +412,27 @@ pub async fn import_audio_batch(
         project_id = ?project_id,
         path_count = paths.len(),
         "starting audio import batch"
+    );
+
+    state.cancel_import.store(false, Ordering::SeqCst);
+    let session_id = format!("import_{}", Uuid::new_v4().to_string().replace('-', ""));
+
+    emit_import_event(
+        &app,
+        "import:started",
+        ImportStartedEvent {
+            session_id: session_id.clone(),
+            total: paths.len(),
+            files: paths
+                .iter()
+                .map(|p| ImportFileEvent {
+                    session_id: session_id.clone(),
+                    path: p.clone(),
+                    status: "pending".to_string(),
+                    message: None,
+                })
+                .collect(),
+        },
     );
 
     // Resolve settings and validate project (if given) before any await point.
@@ -318,84 +474,134 @@ pub async fn import_audio_batch(
     tokio::fs::create_dir_all(&audio_store_dir).await?;
 
     // 1. Compute hashes concurrently.
-    let hashed = futures::stream::iter(paths)
-        .map(|path| {
-            let path = PathBuf::from(path);
-            async move {
-                let hash = compute_file_hash(&path).await?;
-                Ok::<_, Hoi4RadioError>((path, hash))
+    emit_import_phase(&app, &session_id, "hashing", 0, paths.len());
+    let mut hashed: Vec<(PathBuf, String)> = Vec::new();
+    let mut failed: Vec<ImportFailedFile> = Vec::new();
+    {
+        let mut stream = futures::stream::iter(paths.clone())
+            .map(|path| {
+                let session_id = session_id.clone();
+                let app = app.clone();
+                async move {
+                    let path = PathBuf::from(path);
+                    let path_str = path.to_string_lossy().to_string();
+                    emit_import_file(&app, &session_id, &path_str, "hashing", None);
+                    let result = compute_file_hash(&path).await;
+                    (path, result)
+                }
+            })
+            .buffer_unordered(hash_concurrency);
+
+        let mut processed = 0usize;
+        while let Some((path, result)) = stream.next().await {
+            if is_import_cancelled(&state) {
+                tracing::info!("import cancelled during hashing");
+                break;
             }
-        })
-        .buffer_unordered(hash_concurrency)
-        .try_collect::<Vec<_>>()
-        .await?;
+            processed += 1;
+            let path_str = path.to_string_lossy().to_string();
+            match result {
+                Ok(hash) => {
+                    hashed.push((path, hash));
+                    emit_import_file(&app, &session_id, &path_str, "pending", None);
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    failed.push(ImportFailedFile {
+                        path: path_str.clone(),
+                        message: msg.clone(),
+                    });
+                    emit_import_file(&app, &session_id, &path_str, "error", Some(msg));
+                }
+            }
+            emit_import_phase(&app, &session_id, "hashing", processed, paths.len());
+        }
+    }
 
     // 2. Check database for existing files and split into new/existing.
+    let hashed_len = hashed.len();
+    emit_import_phase(&app, &session_id, "checking", 0, hashed_len);
     let mut existing: Vec<AudioFile> = Vec::new();
     let mut to_transcode: Vec<(PathBuf, String)> = Vec::new();
     {
         let db = lock_db(&state)?;
         let repo = AudioRepository::new(&db);
-        for (path, hash) in hashed {
-            let existing_audio = repo.get_by_hash(&hash)?;
-            match existing_audio {
-                Some(audio) => existing.push(audio),
-                None => to_transcode.push((path, hash)),
+        for (idx, (path, hash)) in hashed.into_iter().enumerate() {
+            let path_str = path.to_string_lossy().to_string();
+            match repo.get_by_hash(&hash)? {
+                Some(audio) => {
+                    existing.push(audio);
+                    emit_import_file(&app, &session_id, &path_str, "existing", None);
+                }
+                None => {
+                    to_transcode.push((path, hash));
+                    emit_import_file(&app, &session_id, &path_str, "pending", None);
+                }
             }
+            emit_import_phase(&app, &session_id, "checking", idx + 1, hashed_len);
         }
     }
 
     // 3. Transcode new files concurrently with limited ffmpeg processes.
-    let transcoded = futures::stream::iter(to_transcode)
-        .map(|(source_path, source_hash)| {
-            let audio_store_dir = audio_store_dir.clone();
-            async move {
-                let metadata = analyze_audio(&source_path, ffprobe_path).await?;
-                let id = format!("audio_{}", Uuid::new_v4().to_string().replace('-', ""));
-                let ogg_filename = format!("{}.ogg", id);
-                let ogg_path = audio_store_dir.join(&ogg_filename);
+    let to_transcode_len = to_transcode.len();
+    emit_import_phase(&app, &session_id, "transcoding", 0, to_transcode_len);
+    let mut created: Vec<AudioFile> = Vec::new();
+    {
+        let mut stream = futures::stream::iter(to_transcode)
+            .map(|(source_path, source_hash)| {
+                let audio_store_dir = audio_store_dir.clone();
+                let session_id = session_id.clone();
+                let app = app.clone();
+                let ffmpeg_path = ffmpeg_path.map(|s| s.to_string());
+                let ffprobe_path = ffprobe_path.map(|s| s.to_string());
+                async move {
+                    let path_str = source_path.to_string_lossy().to_string();
+                    emit_import_file(&app, &session_id, &path_str, "transcoding", None);
+                    let result = transcode_one(
+                        source_path,
+                        source_hash,
+                        &audio_store_dir,
+                        ffmpeg_path.as_deref(),
+                        ffprobe_path.as_deref(),
+                    )
+                    .await;
+                    (path_str, result)
+                }
+            })
+            .buffer_unordered(transcode_concurrency);
 
-                transcode_to_ogg(&source_path, &ogg_path, ffmpeg_path).await?;
-
-                let title = source_path
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| id.clone());
-
-                let now = Utc::now();
-                let audio = AudioFile {
-                    id,
-                    source_hash,
-                    title,
-                    artist: None,
-                    source_path: source_path.clone(),
-                    ogg_filename,
-                    duration_secs: metadata.duration_secs,
-                    sample_rate: metadata.sample_rate,
-                    channels: metadata.channels,
-                    volume: 0.75,
-                    tags: vec![],
-                    notes: None,
-                    created_at: now,
-                    updated_at: now,
-                };
-
-                Ok::<_, Hoi4RadioError>(audio)
+        let mut processed = 0usize;
+        while let Some((path_str, result)) = stream.next().await {
+            if is_import_cancelled(&state) {
+                tracing::info!("import cancelled during transcoding");
+                break;
             }
-        })
-        .buffer_unordered(transcode_concurrency)
-        .try_collect::<Vec<_>>()
-        .await?;
+            processed += 1;
+            match result {
+                Ok(audio) => {
+                    created.push(audio);
+                    emit_import_file(&app, &session_id, &path_str, "created", None);
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    failed.push(ImportFailedFile {
+                        path: path_str.clone(),
+                        message: msg.clone(),
+                    });
+                    emit_import_file(&app, &session_id, &path_str, "error", Some(msg));
+                }
+            }
+            emit_import_phase(&app, &session_id, "transcoding", processed, to_transcode_len);
+        }
+    }
 
     // 4. Persist everything and create project references if requested.
-    let mut created = Vec::new();
+    emit_import_phase(&app, &session_id, "persisting", 0, created.len() + existing.len());
     {
         let db = lock_db(&state)?;
         let repo = AudioRepository::new(&db);
-        for audio in transcoded {
-            repo.create(&audio)?;
-            created.push(audio);
+        for audio in &created {
+            repo.create(audio)?;
         }
         if let Some(ref pid) = project_id {
             for audio in existing.iter().chain(created.iter()) {
@@ -403,15 +609,45 @@ pub async fn import_audio_batch(
             }
         }
     }
-
-    tracing::info!(
-        created_count = created.len(),
-        existing_count = existing.len(),
-        project_id = ?project_id,
-        "audio import batch completed"
+    emit_import_phase(
+        &app,
+        &session_id,
+        "persisting",
+        created.len() + existing.len(),
+        created.len() + existing.len(),
     );
 
-    Ok(BatchImportResult { created, existing })
+    let cancelled = is_import_cancelled(&state);
+    let result = BatchImportResult {
+        created: created.clone(),
+        existing: existing.clone(),
+    };
+    let event = ImportResultEvent {
+        session_id: session_id.clone(),
+        created,
+        existing,
+        failed,
+    };
+
+    if cancelled {
+        tracing::info!(
+            created_count = result.created.len(),
+            existing_count = result.existing.len(),
+            project_id = ?project_id,
+            "audio import batch cancelled"
+        );
+        emit_import_event(&app, "import:cancelled", event);
+    } else {
+        tracing::info!(
+            created_count = result.created.len(),
+            existing_count = result.existing.len(),
+            project_id = ?project_id,
+            "audio import batch completed"
+        );
+        emit_import_event(&app, "import:completed", event);
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]

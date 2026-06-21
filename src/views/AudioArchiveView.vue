@@ -33,9 +33,11 @@
               hide-details
               class="search-field"
             />
-          </v-col>
-          <v-col cols="12" md="7" class="d-flex align-center gap-3 flex-wrap">
-            <v-chip-group v-model="selectedTag" class="tag-filter">
+            <v-chip-group
+              v-if="allTags.length"
+              v-model="selectedTag"
+              class="tag-filter mt-3"
+            >
               <v-chip
                 v-for="tag in allTags"
                 :key="tag"
@@ -47,53 +49,57 @@
                 {{ tag }}
               </v-chip>
             </v-chip-group>
-            <v-spacer />
-            <v-btn
-              variant="text"
-              size="small"
-              prepend-icon="mdi-select-all"
-              @click="selectAll"
-            >
-              全选
-            </v-btn>
-            <v-btn
-              variant="text"
-              size="small"
-              prepend-icon="mdi-select-inverse"
-              @click="invertSelection"
-            >
-              反选
-            </v-btn>
-            <v-btn
-              v-if="selectedIds.length"
-              variant="text"
-              size="small"
-              prepend-icon="mdi-select-remove"
-              @click="selectedIds = []"
-            >
-              清除选择
-            </v-btn>
+          </v-col>
+          <v-col cols="12" md="7" class="d-flex align-center justify-end gap-3 flex-wrap">
+            <div class="d-flex align-center gap-3 flex-wrap">
+              <v-btn
+                variant="text"
+                size="small"
+                prepend-icon="mdi-select-all"
+                @click="selectAll"
+              >
+                全选
+              </v-btn>
+              <v-btn
+                variant="text"
+                size="small"
+                prepend-icon="mdi-select-inverse"
+                @click="invertSelection"
+              >
+                反选
+              </v-btn>
+              <v-btn
+                v-if="selectedIds.length"
+                variant="text"
+                size="small"
+                prepend-icon="mdi-select-remove"
+                @click="selectedIds = []"
+              >
+                清除选择
+              </v-btn>
+            </div>
             <v-divider v-if="selectedIds.length" vertical class="mx-2" />
-            <v-btn
-              v-if="selectedIds.length > 1"
-              color="primary"
-              variant="tonal"
-              size="small"
-              prepend-icon="mdi-pencil-box-multiple"
-              @click="showBatchEdit = true"
-            >
-              批量编辑 ({{ selectedIds.length }})
-            </v-btn>
-            <v-btn
-              v-if="selectedIds.length"
-              color="error"
-              variant="tonal"
-              size="small"
-              prepend-icon="mdi-delete-sweep"
-              @click="confirmBatchDelete"
-            >
-              删除选中 ({{ selectedIds.length }})
-            </v-btn>
+            <div v-if="selectedIds.length" class="d-flex align-center gap-3 flex-wrap">
+              <v-btn
+                v-if="selectedIds.length > 1"
+                color="primary"
+                variant="tonal"
+                size="small"
+                prepend-icon="mdi-pencil-box-multiple"
+                @click="showBatchEdit = true"
+              >
+                批量编辑 ({{ selectedIds.length }})
+              </v-btn>
+              <v-btn
+                color="error"
+                variant="tonal"
+                size="small"
+                prepend-icon="mdi-delete-sweep"
+                @click="confirmBatchDelete"
+              >
+                删除选中 ({{ selectedIds.length }})
+              </v-btn>
+            </div>
           </v-col>
         </v-row>
       </v-card-text>
@@ -305,6 +311,8 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <ImportProgressPanel />
   </div>
 </template>
 
@@ -312,12 +320,15 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAudioStore, type AudioFile } from '@/stores/audio'
 import { useToastStore } from '@/stores/toast'
+import { useImportProgressStore } from '@/stores/importProgress'
 import AudioImporter from '@/components/AudioImporter.vue'
 import AudioEditDialog from '@/components/AudioEditDialog.vue'
 import BatchAudioEditDialog from '@/components/BatchAudioEditDialog.vue'
+import ImportProgressPanel from '@/components/ImportProgressPanel.vue'
 
 const audioStore = useAudioStore()
 const toast = useToastStore()
+const importProgress = useImportProgressStore()
 const search = ref('')
 const selectedTag = ref<string | null>(null)
 const showDeleteDialog = ref(false)
@@ -332,6 +343,7 @@ const batchDeleting = ref(false)
 
 onMounted(() => {
   audioStore.loadAllAudio()
+  importProgress.ensureListening()
 })
 
 const allTags = computed(() => {
@@ -378,13 +390,13 @@ function isSelected(id: string) {
 }
 
 function setSelected(id: string, value: boolean | null) {
+  const selected = new Set(selectedIds.value)
   if (value) {
-    if (!selectedIds.value.includes(id)) {
-      selectedIds.value.push(id)
-    }
+    selected.add(id)
   } else {
-    selectedIds.value = selectedIds.value.filter((x) => x !== id)
+    selected.delete(id)
   }
+  selectedIds.value = Array.from(selected)
 }
 
 function toggleSelect(id: string) {
