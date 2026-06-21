@@ -1,9 +1,9 @@
 <template>
   <v-app class="radio-bureau-app">
     <div class="grain-overlay" aria-hidden="true" />
-    <v-layout style="min-height: 100vh">
+    <v-layout class="app-layout">
       <AppSidebar />
-      <v-main>
+      <v-main class="app-main">
         <router-view />
       </v-main>
     </v-layout>
@@ -48,6 +48,17 @@ onMounted(async () => {
   --font-display: 'Oranienbaum', 'Times New Roman', serif;
   --font-body: 'Source Serif 4', Georgia, serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.app-layout {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-main {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .radio-bureau-app {
