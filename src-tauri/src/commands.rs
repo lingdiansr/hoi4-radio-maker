@@ -249,6 +249,18 @@ pub fn list_all_audio_files(state: State<'_, AppState>) -> Result<Vec<AudioFile>
     Ok(files)
 }
 
+fn require_audio_ready(repo: &AudioRepository, id: &str) -> Result<AudioFile> {
+    match repo.get(id)? {
+        Some(audio) if audio.import_status == ImportStatus::Ready => Ok(audio),
+        Some(_) => Err(Hoi4RadioError::AudioNotReady {
+            id: id.to_string(),
+        }),
+        None => Err(Hoi4RadioError::Other {
+            message: format!("audio file not found: {id}"),
+        }),
+    }
+}
+
 #[tauri::command]
 pub fn add_audio_to_project(
     state: State<'_, AppState>,
@@ -257,8 +269,9 @@ pub fn add_audio_to_project(
 ) -> Result<()> {
     let db = lock_db(&state)?;
     let repo = AudioRepository::new(&db);
-    for id in audio_ids {
-        repo.add_to_project(&project_id, &id)?;
+    for id in &audio_ids {
+        require_audio_ready(&repo, id)?;
+        repo.add_to_project(&project_id, id)?;
     }
     Ok(())
 }
@@ -823,6 +836,8 @@ pub fn add_station_entry(
         "adding station entry"
     );
     let db = lock_db(&state)?;
+    let repo = AudioRepository::new(&db);
+    require_audio_ready(&repo, &audio_file_id)?;
     StationRepository::new(&db).add_entry(&station_id, &audio_file_id, chance)
 }
 

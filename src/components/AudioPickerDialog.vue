@@ -24,6 +24,9 @@
           class="mb-4"
         />
 
+        <div class="text-caption text-secondary mb-2">
+          仅显示状态为“就绪”的音频
+        </div>
         <div class="audio-list">
           <v-list v-if="filteredAudio.length > 0" bg-color="transparent">
             <v-list-item
@@ -91,9 +94,11 @@ const audioStore = useAudioStore()
 const search = ref('')
 const selected = ref<Set<string>>(new Set())
 
+const readyAudio = computed(() => audioStore.allAudioFiles.filter((a) => a.import_status === 'ready'))
+
 const filteredAudio = computed(() => {
   const q = search.value.trim().toLowerCase()
-  let list = audioStore.allAudioFiles
+  let list = readyAudio.value
   if (q) {
     list = list.filter(
       (a) =>

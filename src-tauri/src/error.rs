@@ -35,6 +35,9 @@ pub enum Hoi4RadioError {
     #[error("Station name already exists: {name}")]
     StationNameExists { name: String },
 
+    #[error("Audio file is not ready for use: {id}")]
+    AudioNotReady { id: String },
+
     #[error("{message}")]
     Other { message: String },
 }
