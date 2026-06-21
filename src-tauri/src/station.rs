@@ -130,9 +130,48 @@ impl<'a> StationRepository<'a> {
         Ok(())
     }
 
+    /// Update the chance config of a station entry.
+    pub fn update_entry(
+        &self,
+        station_id: &str,
+        audio_file_id: &str,
+        chance: ChanceConfig,
+    ) -> Result<()> {
+        let chance_json = serde_json::to_string(&chance)?;
+        self.db.conn().execute(
+            "UPDATE station_entries SET chance_config = ?1 WHERE station_id = ?2 AND audio_file_id = ?3",
+            params![chance_json, station_id, audio_file_id],
+        )?;
+        Ok(())
+    }
+
+    /// Reorder entries within a station by setting sort_order from the given order.
+    pub fn reorder_entries(&self, station_id: &str, ordered_ids: &[String]) -> Result<()> {
+        let conn = self.db.conn();
+        for (index, audio_file_id) in ordered_ids.iter().enumerate() {
+            conn.execute(
+                "UPDATE station_entries SET sort_order = ?1 WHERE station_id = ?2 AND audio_file_id = ?3",
+                params![index as i32, station_id, audio_file_id],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Reorder stations within a project by setting sort_order from the given order.
+    pub fn reorder_stations(&self, project_id: &str, ordered_ids: &[String]) -> Result<()> {
+        let conn = self.db.conn();
+        for (index, station_id) in ordered_ids.iter().enumerate() {
+            conn.execute(
+                "UPDATE stations SET sort_order = ?1 WHERE project_id = ?2 AND id = ?3",
+                params![index as i32, project_id, station_id],
+            )?;
+        }
+        Ok(())
+    }
+
     fn list_entries(&self, station_id: &str) -> Result<Vec<StationEntry>> {
         let mut stmt = self.db.conn().prepare(
-            "SELECT audio_file_id, chance_config FROM station_entries WHERE station_id = ?1",
+            "SELECT audio_file_id, chance_config FROM station_entries WHERE station_id = ?1 ORDER BY sort_order, id",
         )?;
 
         let mut rows = stmt.query(params![station_id])?;

@@ -4,8 +4,8 @@ use crate::db::{BatchImportResult, Db};
 use crate::error::{Hoi4RadioError, Result};
 use crate::generator::generate_mod;
 use crate::models::{
-    AudioFile, BatchImportFailedFile, BatchUpdateAudioFileRequest, CreateProjectRequest, ImportStatus,
-    Project, UpdateAudioFileRequest, UpdateProjectRequest,
+    AudioFile, BatchImportFailedFile, BatchUpdateAudioFileRequest, ChanceConfig, CreateProjectRequest,
+    ImportStatus, Project, UpdateAudioFileRequest, UpdateProjectRequest,
 };
 use crate::settings::{Settings, SettingsResponse};
 use crate::station::StationRepository;
@@ -820,6 +820,57 @@ pub fn create_station(
 pub fn delete_station(state: State<'_, AppState>, station_id: String) -> Result<()> {
     let db = lock_db(&state)?;
     StationRepository::new(&db).delete(&station_id)
+}
+
+#[tauri::command]
+pub fn rename_station(
+    state: State<'_, AppState>,
+    project_id: String,
+    station_id: String,
+    name: String,
+) -> Result<crate::models::Station> {
+    let db = lock_db(&state)?;
+    let repo = StationRepository::new(&db);
+    if let Some(existing) = repo.find_by_name(&project_id, &name)? {
+        if existing.id != station_id {
+            return Err(Hoi4RadioError::StationNameExists { name });
+        }
+    }
+    repo.rename(&station_id, &name)?;
+    repo.get(&station_id)?.ok_or_else(|| Hoi4RadioError::Other {
+        message: format!("station not found: {station_id}"),
+    })
+}
+
+#[tauri::command]
+pub fn reorder_stations(
+    state: State<'_, AppState>,
+    project_id: String,
+    station_ids: Vec<String>,
+) -> Result<()> {
+    let db = lock_db(&state)?;
+    StationRepository::new(&db).reorder_stations(&project_id, &station_ids)
+}
+
+#[tauri::command]
+pub fn update_station_entry(
+    state: State<'_, AppState>,
+    station_id: String,
+    audio_file_id: String,
+    chance: ChanceConfig,
+) -> Result<()> {
+    let db = lock_db(&state)?;
+    StationRepository::new(&db).update_entry(&station_id, &audio_file_id, chance)
+}
+
+#[tauri::command]
+pub fn reorder_station_entries(
+    state: State<'_, AppState>,
+    station_id: String,
+    audio_ids: Vec<String>,
+) -> Result<()> {
+    let db = lock_db(&state)?;
+    StationRepository::new(&db).reorder_entries(&station_id, &audio_ids)
 }
 
 #[tauri::command]

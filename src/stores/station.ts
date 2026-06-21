@@ -4,9 +4,25 @@ import { invokeCommand } from '@/api/client'
 import { useProjectStore } from '@/stores/project'
 import { logger } from '@/utils/logger'
 
+export type TriggerType = 'has_war' | 'tag' | 'has_government' | 'is_in_faction'
+
+export interface Trigger {
+  type: TriggerType
+  value?: boolean | string
+  ideology?: string
+  tag?: string
+}
+
+export interface Modifier {
+  factor?: number
+  add?: number
+  base?: number
+  triggers: Trigger[]
+}
+
 export interface ChanceConfig {
   factor: number
-  modifiers?: any[]
+  modifiers: Modifier[]
 }
 
 export interface StationEntry {
@@ -41,6 +57,29 @@ export const useStationStore = defineStore('station', () => {
     return station
   }
 
+  async function renameStation(stationId: string, name: string) {
+    if (!projectStore.currentProject) return
+    const updated = await invokeCommand<Station>('rename_station', {
+      projectId: projectStore.currentProject.id,
+      stationId,
+      name,
+    })
+    const idx = stations.value.findIndex((s) => s.id === stationId)
+    if (idx !== -1) {
+      stations.value[idx] = updated
+    }
+    return updated
+  }
+
+  async function reorderStations(orderedIds: string[]) {
+    if (!projectStore.currentProject) return
+    await invokeCommand('reorder_stations', {
+      projectId: projectStore.currentProject.id,
+      stationIds: orderedIds,
+    })
+    await loadStations()
+  }
+
   async function addEntry(stationId: string, audioFileId: string, chance: ChanceConfig) {
     logger.info(`station store: adding entry ${audioFileId} to station ${stationId}`)
     try {
@@ -57,8 +96,25 @@ export const useStationStore = defineStore('station', () => {
     }
   }
 
+  async function updateEntry(stationId: string, audioFileId: string, chance: ChanceConfig) {
+    await invokeCommand('update_station_entry', {
+      stationId,
+      audioFileId,
+      chance,
+    })
+    await loadStations()
+  }
+
   async function removeEntry(stationId: string, audioFileId: string) {
     await invokeCommand('remove_station_entry', { stationId, audioFileId })
+    await loadStations()
+  }
+
+  async function reorderEntries(stationId: string, orderedIds: string[]) {
+    await invokeCommand('reorder_station_entries', {
+      stationId,
+      audioIds: orderedIds,
+    })
     await loadStations()
   }
 
@@ -67,5 +123,16 @@ export const useStationStore = defineStore('station', () => {
     stations.value = stations.value.filter((s) => s.id !== stationId)
   }
 
-  return { stations, loadStations, createStation, addEntry, removeEntry, deleteStation }
+  return {
+    stations,
+    loadStations,
+    createStation,
+    renameStation,
+    reorderStations,
+    addEntry,
+    updateEntry,
+    removeEntry,
+    reorderEntries,
+    deleteStation,
+  }
 })
