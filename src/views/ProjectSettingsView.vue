@@ -267,6 +267,16 @@ watch(
   { immediate: true }
 )
 
+watch(
+  projectId,
+  (id) => {
+    if (id) {
+      audioStore.loadAudio(id)
+    }
+  },
+  { immediate: true }
+)
+
 async function save() {
   const p = projectStore.currentProject
   if (!p) return
