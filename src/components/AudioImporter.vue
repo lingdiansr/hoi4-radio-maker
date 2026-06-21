@@ -16,7 +16,6 @@
 import { computed } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAudioStore, type BatchImportResult } from '@/stores/audio'
-import { useImportProgressStore } from '@/stores/importProgress'
 import { invokeCommand } from '@/api/client'
 import { logger } from '@/utils/logger'
 
@@ -32,7 +31,6 @@ const emit = defineEmits<{
 }>()
 
 const audioStore = useAudioStore()
-const progress = useImportProgressStore()
 
 const buttonLabel = computed(() => {
   return props.mode === 'global' ? '导入到音频库' : '导入音频'
@@ -57,13 +55,11 @@ async function selectFiles() {
 
   logger.info(`audio importer: selected ${selected.length} file(s), mode=${props.mode}`)
 
-  const sessionId = progress.startSession(selected)
   audioStore.importing = true
 
   try {
     const args: Record<string, unknown> = {
       paths: selected,
-      sessionId,
     }
     if (props.mode === 'project' && props.projectId) {
       args.projectId = props.projectId
@@ -73,7 +69,7 @@ async function selectFiles() {
     if (!res) return
 
     logger.info(
-      `audio importer: import finished, created=${res.created.length} existing=${res.existing.length}`
+      `audio importer: import finished, created=${res.created.length} existing=${res.existing.length} failed=${res.failed.length}`
     )
 
     if (props.mode === 'global') {

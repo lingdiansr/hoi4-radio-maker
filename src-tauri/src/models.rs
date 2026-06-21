@@ -16,6 +16,41 @@ pub struct Project {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Import/processing status of an audio file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ImportStatus {
+    Processing,
+    Ready,
+    Error,
+    Cancelled,
+}
+
+impl ImportStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ImportStatus::Processing => "processing",
+            ImportStatus::Ready => "ready",
+            ImportStatus::Error => "error",
+            ImportStatus::Cancelled => "cancelled",
+        }
+    }
+}
+
+impl std::str::FromStr for ImportStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "processing" => Ok(ImportStatus::Processing),
+            "ready" => Ok(ImportStatus::Ready),
+            "error" => Ok(ImportStatus::Error),
+            "cancelled" => Ok(ImportStatus::Cancelled),
+            _ => Err(format!("unknown import_status: {s}")),
+        }
+    }
+}
+
 /// An audio file in the global audio library.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioFile {
@@ -31,6 +66,7 @@ pub struct AudioFile {
     pub volume: f64,
     pub tags: Vec<String>,
     pub notes: Option<String>,
+    pub import_status: ImportStatus,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -137,4 +173,11 @@ pub struct BatchUpdateAudioFileRequest {
     pub artist: Option<Option<String>>,
     pub volume: Option<f64>,
     pub tags: Option<Vec<String>>,
+}
+
+/// A single failed file within a batch import operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchImportFailedFile {
+    pub path: String,
+    pub message: String,
 }

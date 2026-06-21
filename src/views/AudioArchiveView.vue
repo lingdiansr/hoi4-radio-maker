@@ -128,11 +128,18 @@
             >
               <v-card
                 class="audio-item"
-                :class="{ selected: isSelected(audio.id) }"
+                :class="{ selected: isSelected(audio.id), processing: audio.import_status === 'processing' }"
                 variant="flat"
                 rounded="lg"
                 @click="toggleSelect(audio.id)"
               >
+                <v-progress-linear
+                  v-if="audio.import_status === 'processing'"
+                  indeterminate
+                  color="primary"
+                  height="3"
+                  class="audio-progress"
+                />
                 <div class="select-indicator">
                   <v-checkbox
                     :model-value="isSelected(audio.id)"
@@ -142,7 +149,19 @@
                     @update:model-value="setSelected(audio.id, $event)"
                   />
                 </div>
-                <div class="audio-wave" aria-hidden="true">
+                <div
+                  v-if="audio.import_status === 'processing'"
+                  class="audio-wave processing-wave"
+                  aria-hidden="true"
+                >
+                  <div
+                    v-for="i in 12"
+                    :key="i"
+                    class="wave-bar"
+                    :style="{ height: waveHeight(audio.id, i), animationDelay: `${i * 80}ms` }"
+                  />
+                </div>
+                <div v-else class="audio-wave" aria-hidden="true">
                   <div
                     v-for="i in 12"
                     :key="i"
@@ -152,13 +171,19 @@
                 </div>
                 <v-card-text class="pa-4 audio-content">
                   <div class="d-flex justify-space-between align-start mb-3">
-                    <v-icon color="primary" size="32">mdi-music-note</v-icon>
+                    <v-icon
+                      :color="statusColor(audio.import_status)"
+                      size="32"
+                    >
+                      {{ statusIcon(audio.import_status) }}
+                    </v-icon>
                     <div class="d-flex gap-1">
                       <v-btn
                         icon="mdi-pencil"
                         variant="text"
                         size="small"
                         color="primary"
+                        :disabled="audio.import_status !== 'ready'"
                         @click.stop="openEdit(audio)"
                       />
                       <v-btn
@@ -174,11 +199,26 @@
                     {{ audio.title }}
                   </div>
                   <div class="text-mono text-caption text-secondary mb-3">
-                    {{ audio.artist || '未知艺术家' }} · {{ formatDuration(audio.duration_secs) }}
+                    <span>{{ audio.artist || '未知艺术家' }}</span>
+                    <span v-if="audio.import_status === 'ready'">
+                      · {{ formatDuration(audio.duration_secs) }}
+                    </span>
+                    <span v-else-if="audio.import_status === 'processing'"> · 正在导入…</span>
+                    <span v-else-if="audio.import_status === 'error'"> · 导入失败</span>
                   </div>
                   <div class="d-flex justify-space-between align-center text-mono text-caption text-secondary">
-                    <span>{{ audio.sample_rate }} Hz · {{ audio.channels }} ch</span>
-                    <span class="hash">{{ audio.source_hash.slice(0, 8) }}</span>
+                    <span v-if="audio.import_status === 'ready'">
+                      {{ audio.sample_rate }} Hz · {{ audio.channels }} ch
+                    </span>
+                    <span v-else>—</span>
+                    <v-chip
+                      :color="statusColor(audio.import_status)"
+                      size="x-small"
+                      variant="tonal"
+                      class="status-chip"
+                    >
+                      {{ statusLabel(audio.import_status) }}
+                    </v-chip>
                   </div>
                 </v-card-text>
               </v-card>
@@ -204,12 +244,29 @@
                   @click.stop
                   @update:model-value="setSelected(audio.id, $event)"
                 />
-                <v-icon color="primary" class="mr-3">mdi-music-note</v-icon>
+                <v-icon :color="statusColor(audio.import_status)" class="mr-3">
+                  {{ statusIcon(audio.import_status) }}
+                </v-icon>
               </template>
-              <v-list-item-title>{{ audio.title }}</v-list-item-title>
+              <v-list-item-title>
+                {{ audio.title }}
+                <v-chip
+                  :color="statusColor(audio.import_status)"
+                  size="x-small"
+                  variant="tonal"
+                  class="ml-2 status-chip"
+                >
+                  {{ statusLabel(audio.import_status) }}
+                </v-chip>
+              </v-list-item-title>
               <v-list-item-subtitle>
-                {{ audio.artist || '未知艺术家' }} · {{ formatDuration(audio.duration_secs) }}
-                · {{ audio.sample_rate }} Hz · {{ audio.channels }} ch
+                <span>{{ audio.artist || '未知艺术家' }}</span>
+                <span v-if="audio.import_status === 'ready'">
+                  · {{ formatDuration(audio.duration_secs) }}
+                  · {{ audio.sample_rate }} Hz · {{ audio.channels }} ch
+                </span>
+                <span v-else-if="audio.import_status === 'processing'"> · 正在导入…</span>
+                <span v-else-if="audio.import_status === 'error'"> · 导入失败</span>
               </v-list-item-subtitle>
               <template #append>
                 <v-btn
@@ -218,6 +275,7 @@
                   size="small"
                   color="primary"
                   class="mr-1"
+                  :disabled="audio.import_status !== 'ready'"
                   @click.stop="openEdit(audio)"
                 />
                 <v-btn
@@ -265,7 +323,9 @@
         <v-card-text class="pa-6 pt-4 text-body-1">
           确定要从全局音频库中删除选中的 <strong class="text-primary">{{ selectedIds.length }}</strong> 条音频吗？
           <br><br>
-          <span class="text-error">警告：</span>如果音频仍被任何项目引用，将无法删除。
+          <span class="text-secondary">处理中的音频将被取消导入并删除。</span>
+          <br>
+          <span class="text-error">警告：</span>已被项目引用的就绪音频无法删除。
         </v-card-text>
 
         <v-divider opacity="0.2" />
@@ -297,7 +357,9 @@
         <v-card-text class="pa-6 pt-4 text-body-1">
           确定要从全局音频库中删除 <strong class="text-primary">{{ audioToDelete?.title }}</strong> 吗？
           <br><br>
-          <span class="text-error">警告：</span>如果该音频仍被任何项目引用，删除后这些项目将丢失该音频。
+          <span v-if="audioToDelete?.import_status === 'processing'" class="text-secondary">该音频正在导入，删除后将取消导入。</span>
+          <br>
+          <span class="text-error">警告：</span>如果该音频仍被任何项目引用，将无法删除。
         </v-card-text>
 
         <v-divider opacity="0.2" />
@@ -312,7 +374,6 @@
       </v-card>
     </v-dialog>
 
-    <ImportProgressPanel />
   </div>
 </template>
 
@@ -320,15 +381,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAudioStore, type AudioFile } from '@/stores/audio'
 import { useToastStore } from '@/stores/toast'
-import { useImportProgressStore } from '@/stores/importProgress'
 import AudioImporter from '@/components/AudioImporter.vue'
 import AudioEditDialog from '@/components/AudioEditDialog.vue'
 import BatchAudioEditDialog from '@/components/BatchAudioEditDialog.vue'
-import ImportProgressPanel from '@/components/ImportProgressPanel.vue'
 
 const audioStore = useAudioStore()
 const toast = useToastStore()
-const importProgress = useImportProgressStore()
 const search = ref('')
 const selectedTag = ref<string | null>(null)
 const showDeleteDialog = ref(false)
@@ -343,7 +401,7 @@ const batchDeleting = ref(false)
 
 onMounted(() => {
   audioStore.loadAllAudio()
-  importProgress.ensureListening()
+  audioStore.ensureListening()
 })
 
 const allTags = computed(() => {
@@ -377,6 +435,47 @@ function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = Math.floor(seconds % 60)
   return `${m}:${String(s).padStart(2, '0')}`
+}
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case 'processing':
+      return '导入中'
+    case 'error':
+      return '失败'
+    case 'cancelled':
+      return '已取消'
+    case 'ready':
+    default:
+      return '就绪'
+  }
+}
+
+function statusColor(status: string): string {
+  switch (status) {
+    case 'processing':
+      return 'primary'
+    case 'error':
+    case 'cancelled':
+      return 'error'
+    case 'ready':
+    default:
+      return 'primary'
+  }
+}
+
+function statusIcon(status: string): string {
+  switch (status) {
+    case 'processing':
+      return 'mdi-progress-download'
+    case 'error':
+      return 'mdi-alert-circle-outline'
+    case 'cancelled':
+      return 'mdi-cancel'
+    case 'ready':
+    default:
+      return 'mdi-music-note'
+  }
 }
 
 function waveHeight(id: string, i: number): string {
@@ -523,6 +622,27 @@ async function handleDelete() {
   overflow: hidden;
   position: relative;
   cursor: pointer;
+}
+
+.audio-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+}
+
+.processing-wave .wave-bar {
+  animation: pulse-bar 1s ease-in-out infinite;
+}
+
+@keyframes pulse-bar {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.status-chip {
+  font-weight: 500;
 }
 
 .audio-item:hover,

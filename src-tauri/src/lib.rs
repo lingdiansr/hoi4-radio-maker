@@ -12,6 +12,7 @@ pub mod station;
 pub mod validator;
 
 use crate::db::Db;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
@@ -65,6 +66,7 @@ pub fn run() {
         .manage(commands::AppState {
             db: Mutex::new(db),
             cancel_import: Arc::new(AtomicBool::new(false)),
+            active_transcodes: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         })
         .invoke_handler(tauri::generate_handler![
             commands::create_project,

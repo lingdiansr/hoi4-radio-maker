@@ -2,6 +2,7 @@ use crate::error::{Hoi4RadioError, Result};
 use crate::models::AudioMetadata;
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 
@@ -107,16 +108,19 @@ pub async fn analyze_audio<P: AsRef<Path>>(
 ///
 /// The output is encoded at 44.1 kHz using libvorbis quality 4.
 /// Returns the output path, or a `Transcoding` error if ffmpeg fails.
+/// If `cancel_rx` is provided and becomes true, the ffmpeg child process is
+/// killed and a cancellation error is returned.
 pub async fn transcode_to_ogg<P: AsRef<Path>, Q: AsRef<Path>>(
     input: P,
     output: Q,
     ffmpeg_path: Option<&str>,
+    mut cancel_rx: Option<tokio::sync::watch::Receiver<bool>>,
 ) -> Result<PathBuf> {
     let input = input.as_ref();
     let output = output.as_ref();
     let binary = ffmpeg_path.unwrap_or("ffmpeg");
 
-    let result = Command::new(binary)
+    let mut child = Command::new(binary)
         .args([
             "-y",
             "-i",
@@ -129,8 +133,9 @@ pub async fn transcode_to_ogg<P: AsRef<Path>, Q: AsRef<Path>>(
             "4",
             output.to_string_lossy().as_ref(),
         ])
-        .output()
-        .await
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => Hoi4RadioError::Transcoding {
                 message: format!("{binary} not found. Please install ffmpeg or specify the path in settings."),
@@ -140,10 +145,53 @@ pub async fn transcode_to_ogg<P: AsRef<Path>, Q: AsRef<Path>>(
             },
         })?;
 
-    if !result.status.success() {
-        let stderr = String::from_utf8_lossy(&result.stderr);
+    // If cancellation was already requested before we started, kill immediately.
+    if let Some(ref mut rx) = cancel_rx {
+        if *rx.borrow_and_update() {
+            let _ = child.kill().await;
+            return Err(Hoi4RadioError::Transcoding {
+                message: "transcoding cancelled".to_string(),
+            });
+        }
+    }
+
+    let stderr_handle = child.stderr.take();
+    let stderr_task = tokio::spawn(async move {
+        let mut buf = Vec::new();
+        if let Some(mut h) = stderr_handle {
+            let _ = h.read_to_end(&mut buf).await;
+        }
+        buf
+    });
+
+    let status = match cancel_rx {
+        Some(mut rx) => {
+            tokio::select! {
+                status = child.wait() => status,
+                _ = rx.changed() => {
+                    if *rx.borrow() {
+                        let _ = child.kill().await;
+                        let _ = child.wait().await;
+                        return Err(Hoi4RadioError::Transcoding {
+                            message: "transcoding cancelled".to_string(),
+                        });
+                    }
+                    child.wait().await
+                }
+            }
+        }
+        None => child.wait().await,
+    }
+    .map_err(|e| Hoi4RadioError::Io {
+        message: format!("failed to wait for ffmpeg: {e}"),
+    })?;
+
+    let stderr_bytes = stderr_task.await.unwrap_or_default();
+
+    if !status.success() {
+        let stderr = String::from_utf8_lossy(&stderr_bytes);
         return Err(Hoi4RadioError::Transcoding {
-            message: format!("{binary} exited with status {:?}: {stderr}", result.status),
+            message: format!("{binary} exited with status {:?}: {stderr}", status),
         });
     }
 

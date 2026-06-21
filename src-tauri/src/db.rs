@@ -4,13 +4,14 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use crate::error::{Hoi4RadioError, Result};
-use crate::models::{AudioFile, BatchUpdateAudioFileRequest, CreateProjectRequest, Project, UpdateAudioFileRequest, UpdateProjectRequest};
+use crate::models::{AudioFile, BatchImportFailedFile, BatchUpdateAudioFileRequest, CreateProjectRequest, ImportStatus, Project, UpdateAudioFileRequest, UpdateProjectRequest};
 
 /// Result type for a batch import operation.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BatchImportResult {
     pub created: Vec<AudioFile>,
     pub existing: Vec<AudioFile>,
+    pub failed: Vec<BatchImportFailedFile>,
 }
 
 /// Wraps a SQLite connection and provides typed access to application data.
@@ -81,6 +82,7 @@ impl Db {
                 volume REAL NOT NULL DEFAULT 0.75,
                 tags TEXT NOT NULL DEFAULT '[]',
                 notes TEXT,
+                import_status TEXT NOT NULL DEFAULT 'ready',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -118,9 +120,25 @@ impl Db {
             );
 
             PRAGMA foreign_keys = ON;
-            PRAGMA user_version = 1;
             ",
         )?;
+
+        // Migrate from version 1 to 2: add import_status column if missing.
+        if user_version < 2 {
+            let has_status: i32 = self.conn.query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('audio_files') WHERE name = 'import_status'",
+                [],
+                |row| row.get(0),
+            )?;
+            if has_status == 0 {
+                self.conn.execute(
+                    "ALTER TABLE audio_files ADD COLUMN import_status TEXT NOT NULL DEFAULT 'ready'",
+                    [],
+                )?;
+            }
+            self.conn.execute("PRAGMA user_version = 2", [])?;
+        }
+
         Ok(())
     }
 
@@ -262,8 +280,8 @@ impl Db {
             "INSERT INTO audio_files (
                 id, source_hash, title, artist, source_path, ogg_filename,
                 duration_secs, sample_rate, channels, volume, tags, notes,
-                created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                import_status, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             params![
                 &audio.id,
                 &audio.source_hash,
@@ -277,12 +295,34 @@ impl Db {
                 audio.volume,
                 serde_json::to_string(&audio.tags)?,
                 audio.notes.as_deref(),
+                audio.import_status.as_str(),
                 audio.created_at.to_rfc3339(),
                 audio.updated_at.to_rfc3339(),
             ],
         )?;
 
         Ok(audio.clone())
+    }
+
+    /// Update the import status of an audio file.
+    pub fn update_audio_file_status(&self, id: &str, status: ImportStatus) -> Result<AudioFile> {
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "UPDATE audio_files SET import_status = ?1, updated_at = ?2 WHERE id = ?3",
+            params![status.as_str(), now, id],
+        )?;
+        self.get_audio_file(id)?.ok_or_else(|| Hoi4RadioError::Other {
+            message: format!("audio file not found: {id}"),
+        })
+    }
+
+    /// Remove all project references to an audio file.
+    pub fn remove_audio_from_all_projects(&self, audio_file_id: &str) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM project_audio_files WHERE audio_file_id = ?1",
+            params![audio_file_id],
+        )?;
+        Ok(())
     }
 
     /// Add an existing audio file to a project's reference list.
@@ -312,7 +352,7 @@ impl Db {
         let mut stmt = self.conn.prepare(
             "SELECT a.id, a.source_hash, a.title, a.artist, a.source_path,
                     a.ogg_filename, a.duration_secs, a.sample_rate,
-                    a.channels, a.volume, a.tags, a.notes,
+                    a.channels, a.volume, a.tags, a.notes, a.import_status,
                     a.created_at, a.updated_at
              FROM audio_files a
              JOIN project_audio_files pa ON a.id = pa.audio_file_id
@@ -333,7 +373,7 @@ impl Db {
         let mut stmt = self.conn.prepare(
             "SELECT id, source_hash, title, artist, source_path, ogg_filename,
                     duration_secs, sample_rate, channels, volume, tags, notes,
-                    created_at, updated_at
+                    import_status, created_at, updated_at
              FROM audio_files
              ORDER BY title",
         )?;
@@ -351,7 +391,7 @@ impl Db {
         let mut stmt = self.conn.prepare(
             "SELECT id, source_hash, title, artist, source_path, ogg_filename,
                     duration_secs, sample_rate, channels, volume, tags, notes,
-                    created_at, updated_at
+                    import_status, created_at, updated_at
              FROM audio_files
              WHERE id = ?1",
         )?;
@@ -368,7 +408,7 @@ impl Db {
         let mut stmt = self.conn.prepare(
             "SELECT id, source_hash, title, artist, source_path, ogg_filename,
                     duration_secs, sample_rate, channels, volume, tags, notes,
-                    created_at, updated_at
+                    import_status, created_at, updated_at
              FROM audio_files
              WHERE source_hash = ?1",
         )?;
@@ -380,18 +420,25 @@ impl Db {
         }
     }
 
-    /// Delete an audio file from the global library if it is not referenced.
-    pub fn delete_audio_file(&self, id: &str) -> Result<()> {
-        let references: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM project_audio_files WHERE audio_file_id = ?1",
-            params![id],
-            |row| row.get(0),
-        )?;
+    /// Delete an audio file from the global library.
+    ///
+    /// By default, refuses if the file is referenced by any project. Pass
+    /// `force = true` to remove references and delete anyway.
+    pub fn delete_audio_file(&self, id: &str, force: bool) -> Result<()> {
+        if force {
+            self.remove_audio_from_all_projects(id)?;
+        } else {
+            let references: i64 = self.conn.query_row(
+                "SELECT COUNT(*) FROM project_audio_files WHERE audio_file_id = ?1",
+                params![id],
+                |row| row.get(0),
+            )?;
 
-        if references > 0 {
-            return Err(Hoi4RadioError::Other {
-                message: "audio file is still referenced by one or more projects".to_string(),
-            });
+            if references > 0 {
+                return Err(Hoi4RadioError::Other {
+                    message: "audio file is still referenced by one or more projects".to_string(),
+                });
+            }
         }
 
         self.conn
@@ -515,6 +562,7 @@ fn audio_file_from_row(row: &rusqlite::Row) -> Result<AudioFile> {
     let tags_json: String = row.get("tags")?;
     let created_at_str: String = row.get("created_at")?;
     let updated_at_str: String = row.get("updated_at")?;
+    let import_status_str: String = row.get("import_status")?;
 
     let parse_dt = |s: &str| -> Result<DateTime<Utc>> {
         DateTime::parse_from_rfc3339(s)
@@ -523,6 +571,12 @@ fn audio_file_from_row(row: &rusqlite::Row) -> Result<AudioFile> {
                 message: format!("invalid RFC 3339 timestamp: {e}"),
             })
     };
+
+    let import_status = import_status_str.parse().map_err(|e: String| {
+        Hoi4RadioError::Other {
+            message: format!("invalid import_status in database: {e}"),
+        }
+    })?;
 
     Ok(AudioFile {
         id: row.get("id")?,
@@ -537,6 +591,7 @@ fn audio_file_from_row(row: &rusqlite::Row) -> Result<AudioFile> {
         volume: row.get("volume")?,
         tags: serde_json::from_str(&tags_json)?,
         notes: row.get("notes")?,
+        import_status,
         created_at: parse_dt(&created_at_str)?,
         updated_at: parse_dt(&updated_at_str)?,
     })
@@ -575,6 +630,7 @@ mod tests {
     use chrono::Utc;
 
     fn dummy_audio(id: &str, title: &str) -> AudioFile {
+        use crate::models::ImportStatus;
         AudioFile {
             id: id.to_string(),
             source_hash: format!("hash_{id}"),
@@ -588,6 +644,7 @@ mod tests {
             volume: 0.75,
             tags: vec!["Sound".to_string()],
             notes: None,
+            import_status: ImportStatus::Ready,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
