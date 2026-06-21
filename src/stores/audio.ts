@@ -4,7 +4,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { invokeCommand } from '@/api/client'
 import { logger } from '@/utils/logger'
 
-export type ImportStatus = 'processing' | 'ready' | 'error' | 'cancelled'
+export type ImportStatus = 'pending' | 'processing' | 'ready' | 'error' | 'cancelled'
 
 export interface AudioFile {
   id: string

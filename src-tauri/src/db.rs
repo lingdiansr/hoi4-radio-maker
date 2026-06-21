@@ -316,6 +316,38 @@ impl Db {
         })
     }
 
+    /// Promote a pending record to processing with real hash and metadata.
+    pub fn start_audio_file_processing(
+        &self,
+        id: &str,
+        source_hash: &str,
+        metadata: &crate::models::AudioMetadata,
+    ) -> Result<AudioFile> {
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "UPDATE audio_files
+             SET source_hash = ?1,
+                 duration_secs = ?2,
+                 sample_rate = ?3,
+                 channels = ?4,
+                 import_status = ?5,
+                 updated_at = ?6
+             WHERE id = ?7",
+            params![
+                source_hash,
+                metadata.duration_secs,
+                metadata.sample_rate,
+                metadata.channels,
+                ImportStatus::Processing.as_str(),
+                now,
+                id,
+            ],
+        )?;
+        self.get_audio_file(id)?.ok_or_else(|| Hoi4RadioError::Other {
+            message: format!("audio file not found: {id}"),
+        })
+    }
+
     /// Remove all project references to an audio file.
     pub fn remove_audio_from_all_projects(&self, audio_file_id: &str) -> Result<()> {
         self.conn.execute(

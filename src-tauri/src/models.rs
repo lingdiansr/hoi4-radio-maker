@@ -20,6 +20,7 @@ pub struct Project {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ImportStatus {
+    Pending,
     Processing,
     Ready,
     Error,
@@ -29,6 +30,7 @@ pub enum ImportStatus {
 impl ImportStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
+            ImportStatus::Pending => "pending",
             ImportStatus::Processing => "processing",
             ImportStatus::Ready => "ready",
             ImportStatus::Error => "error",
@@ -42,6 +44,7 @@ impl std::str::FromStr for ImportStatus {
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
+            "pending" => Ok(ImportStatus::Pending),
             "processing" => Ok(ImportStatus::Processing),
             "ready" => Ok(ImportStatus::Ready),
             "error" => Ok(ImportStatus::Error),

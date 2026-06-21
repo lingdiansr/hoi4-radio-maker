@@ -1,6 +1,6 @@
 use crate::db::{BatchImportResult, Db};
 use crate::error::Result;
-use crate::models::{AudioFile, BatchUpdateAudioFileRequest, ImportStatus, UpdateAudioFileRequest};
+use crate::models::{AudioFile, AudioMetadata, BatchUpdateAudioFileRequest, ImportStatus, UpdateAudioFileRequest};
 
 /// Repository for audio file records in the global library.
 pub struct AudioRepository<'a> {
@@ -51,6 +51,16 @@ impl<'a> AudioRepository<'a> {
     /// Update the import status of an audio file.
     pub fn update_status(&self, id: &str, status: ImportStatus) -> Result<AudioFile> {
         self.db.update_audio_file_status(id, status)
+    }
+
+    /// Promote a pending record to processing with real hash and metadata.
+    pub fn start_processing(
+        &self,
+        id: &str,
+        source_hash: &str,
+        metadata: &AudioMetadata,
+    ) -> Result<AudioFile> {
+        self.db.start_audio_file_processing(id, source_hash, metadata)
     }
 
     /// Delete an audio file from the global library.

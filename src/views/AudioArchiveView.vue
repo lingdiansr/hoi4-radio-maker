@@ -203,6 +203,7 @@
                     <span v-if="audio.import_status === 'ready'">
                       · {{ formatDuration(audio.duration_secs) }}
                     </span>
+                    <span v-else-if="audio.import_status === 'pending'"> · 等待处理…</span>
                     <span v-else-if="audio.import_status === 'processing'"> · 正在导入…</span>
                     <span v-else-if="audio.import_status === 'error'"> · 导入失败</span>
                   </div>
@@ -230,11 +231,19 @@
             <v-list-item
               v-for="audio in filteredAudio"
               :key="audio.id"
-              class="audio-list-item mb-2"
+              class="audio-list-item mb-2 position-relative"
               :class="{ selected: isSelected(audio.id) }"
               rounded="lg"
               @click="toggleSelect(audio.id)"
             >
+              <v-progress-linear
+                v-if="audio.import_status === 'pending' || audio.import_status === 'processing'"
+                :indeterminate="audio.import_status === 'processing'"
+                :model-value="audio.import_status === 'pending' ? 0 : undefined"
+                :color="statusColor(audio.import_status)"
+                height="2"
+                class="list-progress"
+              />
               <template #prepend>
                 <v-checkbox
                   :model-value="isSelected(audio.id)"
@@ -265,6 +274,7 @@
                   · {{ formatDuration(audio.duration_secs) }}
                   · {{ audio.sample_rate }} Hz · {{ audio.channels }} ch
                 </span>
+                <span v-else-if="audio.import_status === 'pending'"> · 等待处理…</span>
                 <span v-else-if="audio.import_status === 'processing'"> · 正在导入…</span>
                 <span v-else-if="audio.import_status === 'error'"> · 导入失败</span>
               </v-list-item-subtitle>
@@ -439,6 +449,8 @@ function formatDuration(seconds: number): string {
 
 function statusLabel(status: string): string {
   switch (status) {
+    case 'pending':
+      return '等待中'
     case 'processing':
       return '导入中'
     case 'error':
@@ -453,6 +465,8 @@ function statusLabel(status: string): string {
 
 function statusColor(status: string): string {
   switch (status) {
+    case 'pending':
+      return 'secondary'
     case 'processing':
       return 'primary'
     case 'error':
@@ -466,6 +480,8 @@ function statusColor(status: string): string {
 
 function statusIcon(status: string): string {
   switch (status) {
+    case 'pending':
+      return 'mdi-clock-outline'
     case 'processing':
       return 'mdi-progress-download'
     case 'error':
@@ -643,6 +659,14 @@ async function handleDelete() {
 
 .status-chip {
   font-weight: 500;
+}
+
+.list-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
 }
 
 .audio-item:hover,
