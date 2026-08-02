@@ -114,28 +114,40 @@ pub async fn create_project(
     Ok(project)
 }
 
-/// Resolve the project output directory from the request or settings.
+/// Resolve the actual project directory from the user-selected library directory.
+///
+/// The request's `output_dir` is treated as the project library directory.
+/// The final content directory (where generated game files live) is
+/// `<library_dir>/<sanitized_project_name>/<sanitized_project_name>`.
+/// The launcher `.mod` descriptor is written next to it at
+/// `<library_dir>/<sanitized_project_name>/<sanitized_project_name>.mod`.
 fn resolve_output_dir(db: &Db, req: &CreateProjectRequest) -> Result<PathBuf> {
-    if let Some(dir) = req.output_dir.to_str().filter(|s| !s.is_empty()) {
-        let path = PathBuf::from(dir);
-        if path.components().count() > 1 {
-            return Ok(path);
-        }
-    }
-
-    let settings = Settings::get(db)?;
-    let base = settings
-        .default_project_dir
-        .as_deref()
+    let library_dir = req
+        .output_dir
+        .to_str()
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
+        .or_else(|| {
+            let settings = Settings::get(db).ok()?;
+            settings
+                .default_project_dir
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from)
+        })
         .or_else(dirs::document_dir)
         .ok_or_else(|| Hoi4RadioError::Other {
-            message: "could not determine default project directory".to_string(),
+            message: "could not determine project library directory".to_string(),
         })?;
 
     let folder_name = sanitize_folder_name(&req.name);
-    Ok(base.join("mod").join(&folder_name))
+    if folder_name.is_empty() {
+        return Err(Hoi4RadioError::Validation {
+            message: "project name cannot be empty or contain only invalid characters".to_string(),
+        });
+    }
+
+    Ok(library_dir.join(&folder_name).join(&folder_name))
 }
 
 fn detect_system_user() -> Option<String> {
@@ -147,7 +159,7 @@ fn detect_system_user() -> Option<String> {
 
 fn sanitize_folder_name(name: &str) -> String {
     name.trim()
-        .replace(|c: char| c.is_ascii_control() || matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'), "_")
+        .replace(|c: char| c.is_ascii_control() || matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' | '.'), "_")
         .replace(' ', "_")
 }
 
@@ -175,12 +187,13 @@ async fn write_mod_descriptor(req: &CreateProjectRequest, output_dir: &Path) -> 
 
     let mut lines = vec![
         format!("name=\"{}\"", req.name.replace('"', "\\\"")),
-        format!("path=\"mod/{}\"", folder_name),
+        format!("path=\"{}\"", folder_name),
         format!("tags={}", tags),
         format!("version=\"{}\"", req.version.replace('"', "\\\"")),
         format!(
             "supported_version=\"{}\"",
-            req.supported_version.replace('"', "\\\"")
+            crate::hoi4_version::extract_supported_version(&req.supported_version)
+                .replace('"', "\\\"")
         ),
     ];
     if let Some(author) = &req.author {
@@ -230,9 +243,62 @@ pub fn update_project(
 }
 
 #[tauri::command]
-pub fn delete_project(state: State<'_, AppState>, id: String) -> Result<()> {
+pub fn delete_project(
+    state: State<'_, AppState>,
+    id: String,
+    delete_files: bool,
+) -> Result<()> {
     let db = lock_db(&state)?;
-    db.delete_project(&id)
+    let project = db
+        .get_project(&id)?
+        .ok_or_else(|| Hoi4RadioError::ProjectNotFound { id: id.clone() })?;
+
+    // Always remove the database record first; filesystem cleanup is best-effort.
+    db.delete_project(&id)?;
+
+    if delete_files {
+        if let Err(err) = remove_project_files(&project.output_dir) {
+            tracing::warn!(
+                project_id = %id,
+                output_dir = %project.output_dir.display(),
+                error = %err,
+                "failed to remove project files after database deletion"
+            );
+        }
+    }
+
+    Ok(())
+}
+
+/// Remove the project container directory, handling both the current layout
+/// (`<library>/<name>/<name>`) and the legacy layout (`<library>/mod/<name>`).
+fn remove_project_files(output_dir: &std::path::Path) -> Result<()> {
+    let Some(container) = output_dir.parent() else {
+        return Ok(());
+    };
+
+    let container_name = container.file_name().and_then(|s| s.to_str());
+    let inner_name = output_dir.file_name().and_then(|s| s.to_str());
+
+    if container_name == inner_name && container.exists() {
+        // Current layout: the container holds both the .mod file and the
+        // content directory. Remove the whole container.
+        std::fs::remove_dir_all(container)?;
+    } else {
+        // Legacy layout or non-standard path: remove only the content
+        // directory and, if present, the sibling .mod descriptor.
+        if output_dir.exists() {
+            std::fs::remove_dir_all(output_dir)?;
+        }
+        if let Some(inner_name) = inner_name {
+            let legacy_mod = container.join(format!("{}.mod", inner_name));
+            if legacy_mod.exists() {
+                std::fs::remove_file(legacy_mod)?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -988,7 +1054,7 @@ pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<(
 }
 
 #[tauri::command]
-pub fn get_default_project_dir(state: State<'_, AppState>) -> Result<String> {
+pub fn get_default_library_dir(state: State<'_, AppState>) -> Result<String> {
     let db = lock_db(&state)?;
     let settings = Settings::get(&db)?;
     let base = settings
@@ -998,7 +1064,86 @@ pub fn get_default_project_dir(state: State<'_, AppState>) -> Result<String> {
         .map(PathBuf::from)
         .or_else(dirs::document_dir)
         .ok_or_else(|| Hoi4RadioError::Other {
-            message: "could not determine default project directory".to_string(),
+            message: "could not determine default project library directory".to_string(),
         })?;
-    Ok(base.join("mod").to_string_lossy().to_string())
+    Ok(base.to_string_lossy().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_folder_name;
+
+    #[test]
+    fn sanitize_replaces_invalid_and_whitespace_chars() {
+        assert_eq!(sanitize_folder_name("My Radio Mod"), "My_Radio_Mod");
+        assert_eq!(
+            sanitize_folder_name("a<b>c:d|e?f*g/h\\i"),
+            "a_b_c_d_e_f_g_h_i"
+        );
+        assert_eq!(sanitize_folder_name("  trim  "), "trim");
+    }
+
+    #[test]
+    fn sanitize_replaces_dots() {
+        assert_eq!(sanitize_folder_name("My.Mod.v2"), "My_Mod_v2");
+        assert_eq!(sanitize_folder_name("..."), "___");
+    }
+
+    #[test]
+    fn remove_project_files_deletes_current_layout_container() {
+        use super::remove_project_files;
+        let tmp = tempfile::tempdir().unwrap();
+        let library = tmp.path().join("my_radio");
+        let content = library.join("my_radio");
+        std::fs::create_dir_all(&content).unwrap();
+        std::fs::write(library.join("my_radio.mod"), b"").unwrap();
+        std::fs::write(content.join("descriptor.mod"), b"").unwrap();
+
+        remove_project_files(&content).unwrap();
+
+        assert!(!library.exists(), "container directory should be removed");
+        assert!(tmp.path().exists());
+    }
+
+    #[test]
+    fn remove_project_files_deletes_legacy_layout_and_mod_descriptor() {
+        use super::remove_project_files;
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_dir = tmp.path().join("mod");
+        let content = mod_dir.join("my_radio");
+        std::fs::create_dir_all(&content).unwrap();
+        std::fs::write(mod_dir.join("my_radio.mod"), b"").unwrap();
+        std::fs::write(content.join("descriptor.mod"), b"").unwrap();
+
+        remove_project_files(&content).unwrap();
+
+        assert!(!content.exists());
+        assert!(!mod_dir.join("my_radio.mod").exists());
+        assert!(mod_dir.exists());
+    }
+
+    #[test]
+    fn remove_project_files_is_idempotent_for_missing_paths() {
+        use super::remove_project_files;
+        let tmp = tempfile::tempdir().unwrap();
+        let content = tmp.path().join("does_not_exist");
+        remove_project_files(&content).unwrap();
+    }
+
+    #[test]
+    fn resolve_output_dir_rejects_empty_sanitized_name() {
+        use super::resolve_output_dir;
+        use crate::db::Db;
+        let tmp = tempfile::tempdir().unwrap();
+        let db = Db::open(tmp.path().join("app.db")).unwrap();
+        let req = crate::models::CreateProjectRequest {
+            name: "   ".to_string(),
+            version: "0.1.0".to_string(),
+            supported_version: "v1.0.0".to_string(),
+            tags: vec![],
+            author: None,
+            output_dir: tmp.path().to_path_buf(),
+        };
+        assert!(resolve_output_dir(&db, &req).is_err());
+    }
 }

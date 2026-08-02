@@ -40,7 +40,7 @@
             />
             <v-text-field
               :model-value="form.output_dir"
-              label="输出目录"
+              label="项目目录"
               prepend-inner-icon="mdi-folder-open"
               class="mb-4"
               hide-details="auto"
@@ -83,7 +83,7 @@
               <v-card-text>
                 <v-icon color="primary" size="32" class="mb-2">mdi-information-outline</v-icon>
                 <div class="text-body text-secondary text-body-2">
-                  项目名称、版本与输出目录会写入生成的 Mod 描述文件。输出目录在项目创建时确定，此处仅作查看；如需更改，请新建项目。
+                  项目名称、版本与项目目录会写入生成的 Mod 描述文件。项目目录在项目创建时确定，此处仅作查看；如需更改，请新建项目。
                 </div>
               </v-card-text>
             </v-card>

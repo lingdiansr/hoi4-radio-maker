@@ -56,8 +56,8 @@ export const useProjectStore = defineStore("project", () => {
     return p;
   }
 
-  async function deleteProject(id: string) {
-    await invokeCommand("delete_project", { id });
+  async function deleteProject(id: string, deleteFiles = false) {
+    await invokeCommand("delete_project", { id, delete_files: deleteFiles });
     projects.value = projects.value.filter((p) => p.id !== id);
     if (currentProject.value?.id === id) {
       currentProject.value = null;

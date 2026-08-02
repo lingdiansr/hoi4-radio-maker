@@ -75,7 +75,7 @@ fn write_descriptor_mod(project: &Project, output_dir: &Path) -> Result<()> {
     writeln!(
         file,
         "supported_version=\"{}\"",
-        escape_hoi4(&project.supported_version)
+        escape_hoi4(&crate::hoi4_version::extract_supported_version(&project.supported_version))
     )?;
     write!(file, "tags={{")?;
     for tag in &project.tags {
@@ -96,12 +96,12 @@ fn write_launcher_mod(project: &Project, output_dir: &Path) -> Result<()> {
     let mut file = File::create(&path)?;
 
     writeln!(file, "name=\"{}\"", escape_hoi4(&project.name))?;
-    writeln!(file, "path=\"mod/{}\"", escape_hoi4(&dir_name))?;
+    writeln!(file, "path=\"{}\"", escape_hoi4(&dir_name))?;
     writeln!(file, "version=\"{}\"", escape_hoi4(&project.version))?;
     writeln!(
         file,
         "supported_version=\"{}\"",
-        escape_hoi4(&project.supported_version)
+        escape_hoi4(&crate::hoi4_version::extract_supported_version(&project.supported_version))
     )?;
 
     Ok(())

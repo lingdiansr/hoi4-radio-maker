@@ -19,6 +19,8 @@ pub struct Settings {
     pub hoi4_game_dir: Option<String>,
     pub theme: String,
     pub import_concurrency: u32,
+    /// Project library directory: the parent directory under which `mod/<name>/`
+    /// folders and `<name>.mod` descriptors are created.
     pub default_project_dir: Option<String>,
     pub default_author: Option<String>,
     pub default_version: Option<String>,

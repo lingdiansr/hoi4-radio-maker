@@ -47,8 +47,8 @@
             />
             <PathField
               v-model="defaultProjectDir"
-              label="默认项目根目录"
-              placeholder="选择默认存放 mods 的目录"
+              label="默认项目库目录"
+              placeholder="选择默认项目库目录"
               prepend-inner-icon="mdi-folder-cog"
               picker-mode="directory"
               class="mb-4"
@@ -137,7 +137,7 @@
                 <div class="text-body text-secondary text-body-2">
                   全局设置会保存在应用数据目录中，对所有项目生效。启动时会自动探测 ffmpeg 与 ffprobe；若未找到且未手动指定，将提示错误。
                   <br><br>
-                  <strong>默认项目根目录</strong>用于新建项目时自动生成文件夹与 .mod 文件。<strong>默认兼容游戏版本</strong>留空时，会尝试从 HOI4 游戏目录读取 launcher-settings.json 自动填充。
+                  <strong>默认项目库目录</strong>用于新建项目时自动生成项目文件夹与 .mod 文件。实际目录结构为「项目库目录/项目名称/项目名称.mod」和「项目库目录/项目名称/项目名称/」。<strong>默认兼容游戏版本</strong>留空时，会尝试从 HOI4 游戏目录读取 launcher-settings.json 自动填充。
                   <br><br>
                   导入并发数控制同时计算文件哈希的并行度（ffmpeg 转码会在此基础上减半运行）。
                 </div>

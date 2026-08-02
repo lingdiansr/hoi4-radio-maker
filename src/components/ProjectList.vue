@@ -108,13 +108,22 @@
             </v-col>
           </v-row>
           <PathField
-            v-model="form.output_dir"
-            label="输出目录"
-            placeholder="选择 Mod 输出目录"
+            v-model="form.library_dir"
+            label="项目库目录"
+            placeholder="选择项目库目录"
             prepend-inner-icon="mdi-folder-open"
             picker-mode="directory"
             class="mb-4"
             :rules="[required]"
+          />
+          <v-text-field
+            :model-value="projectDir"
+            label="项目目录"
+            placeholder="自动根据项目库目录与名称生成"
+            prepend-inner-icon="mdi-folder-cog"
+            class="mb-4"
+            hide-details="auto"
+            readonly
           />
           <v-text-field
             v-model="form.author"
@@ -152,7 +161,15 @@
         </v-card-title>
 
         <v-card-text class="pa-6 pt-4 text-body-1">
-          确定要删除项目 <strong class="text-primary">{{ projectToDelete?.name }}</strong> 吗？此操作不会删除输出目录中的文件。
+          确定要删除项目 <strong class="text-primary">{{ projectToDelete?.name }}</strong> 吗？
+          <v-checkbox
+            v-model="deleteFiles"
+            label="同时删除项目目录及 .mod 文件（不可恢复）"
+            color="error"
+            hide-details
+            density="compact"
+            class="mt-4"
+          />
         </v-card-text>
 
         <v-divider opacity="0.2" />
@@ -170,28 +187,41 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, reactive, onUnmounted, watch, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useProjectStore, type Project } from '@/stores/project'
+import { useSettingsStore } from '@/stores/settings'
 import PathField from '@/components/PathField.vue'
+import { sanitizeFolderName } from '@/utils/sanitize'
+import { logger } from '@/utils/logger'
 
 const router = useRouter()
+const route = useRoute()
 
 const projectStore = useProjectStore()
+const settingsStore = useSettingsStore()
 const showDialog = ref(false)
 const showDeleteDialog = ref(false)
 const projectToDelete = ref<Project | null>(null)
+const deleteFiles = ref(false)
 const form = reactive({
   name: 'My Radio Mod',
   version: '0.1.0',
   supported_version: '*',
-  output_dir: '',
+  library_dir: '',
   author: '',
 })
 
 function required(v: string) {
-  return !!v || '此项为必填'
+  return !!v.trim() || '此项为必填'
 }
+
+const projectDir = computed(() => {
+  if (!form.library_dir) return ''
+  const base = form.library_dir.replace(/[\\/]+$/, '')
+  const folder = sanitizeFolderName(form.name)
+  return `${base}/${folder}/${folder}`
+})
 
 onMounted(() => {
   projectStore.loadProjects()
@@ -202,14 +232,29 @@ onUnmounted(() => {
   window.removeEventListener('bureau:create-project', openCreateDialog)
 })
 
+watch(showDialog, async (visible) => {
+  if (!visible) return
+  await settingsStore.loadSettings()
+  const s = settingsStore.settings
+  if (!s) return
+  form.name = 'My Radio Mod'
+  form.version = s.default_version || '0.1.0'
+  form.supported_version = settingsStore.effectiveSupportedVersion || '*'
+  form.author = s.default_author || ''
+  form.library_dir = await settingsStore.getDefaultLibraryDir()
+})
+
 function openCreateDialog() {
   showDialog.value = true
 }
 
 async function handleCreate() {
-  if (!form.name || !form.version || !form.supported_version || !form.output_dir) return
+  if (!form.name || !form.version || !form.supported_version || !form.library_dir) return
   const p = await projectStore.createProject({
-    ...form,
+    name: form.name,
+    version: form.version,
+    supported_version: form.supported_version,
+    output_dir: form.library_dir,
     tags: ['Sound'],
     author: form.author.trim() || undefined,
   })
@@ -226,14 +271,26 @@ function selectProject(p: Project) {
 
 function confirmDelete(p: Project) {
   projectToDelete.value = p
+  deleteFiles.value = false
   showDeleteDialog.value = true
 }
 
 async function handleDelete() {
   if (!projectToDelete.value) return
-  await projectStore.deleteProject(projectToDelete.value.id)
-  showDeleteDialog.value = false
-  projectToDelete.value = null
+  const deletedId = projectToDelete.value.id
+  try {
+    await projectStore.deleteProject(deletedId, deleteFiles.value)
+    showDeleteDialog.value = false
+    projectToDelete.value = null
+    deleteFiles.value = false
+    if (projectStore.projects.length === 0) {
+      router.push({ name: 'welcome' })
+    } else if (route.name === 'project' && route.params.id === deletedId) {
+      router.push({ name: 'welcome' })
+    }
+  } catch (err) {
+    logger.error(`Failed to delete project: ${err}`)
+  }
 }
 
 function formatDate(path: string) {

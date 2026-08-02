@@ -96,7 +96,7 @@ pub fn run() {
             commands::validate_project_mod,
             commands::get_settings,
             commands::save_settings,
-            commands::get_default_project_dir,
+            commands::get_default_library_dir,
         ])
         .setup(|_app| {
             #[cfg(feature = "dev-mcp-bridge")]

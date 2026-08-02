@@ -57,8 +57,8 @@ export const useSettingsStore = defineStore('settings', () => {
     logger.info('settings store: saved settings')
   }
 
-  async function getDefaultProjectDir() {
-    return invokeCommand<string>('get_default_project_dir')
+  async function getDefaultLibraryDir() {
+    return invokeCommand<string>('get_default_library_dir')
   }
 
   return {
@@ -69,6 +69,6 @@ export const useSettingsStore = defineStore('settings', () => {
     effectiveSupportedVersion,
     loadSettings,
     saveSettings,
-    getDefaultProjectDir,
+    getDefaultLibraryDir,
   }
 })
