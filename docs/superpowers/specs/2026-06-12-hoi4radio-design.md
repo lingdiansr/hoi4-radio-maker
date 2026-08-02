@@ -2,7 +2,7 @@
 
 > 项目路径：`/home/ldsr/code/Rust/hoi4-radio-maker`
 > 设计日期：2026-06-12
-> 状态：待实现
+> 状态：主体功能已实现，细节优化中（见 `docs/superpowers/roadmap.md` 第 9 节及 `plans/2026-06-15-hoi4-compatibility-and-quality-plan.md`）
 
 ---
 

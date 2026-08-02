@@ -1,7 +1,7 @@
 # HOI4 Radio Maker 项目设置与音频库重构设计
 
 > 设计日期：2026-06-19  
-> 状态：待用户审查  
+> 状态：已审查并合并至 main，细节优化中（见 `docs/superpowers/roadmap.md` 第 9 节）  
 > 分支：`feat/project-settings-audio-library`  
 > 方案：方案 A（统一重构）
 

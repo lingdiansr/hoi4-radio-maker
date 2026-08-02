@@ -145,3 +145,53 @@ Task 6.5 → Task 9 → Task 9.5 → Task 11
 - 每个 Task 完成后运行对应测试，通过后再进入下一阶段。
 - Phase 2 和 Phase 4 推荐用子代理并行推进，但需统一代码审查。
 - Task 7 和 Task 10 建议由同一开发者或子代理负责，以保证前后端接口命名一致。
+
+---
+
+## 九、实际 HOI4 文件复核后的状态与补充任务
+
+基于 2026-06-15 对游戏本体（`Hearts of Iron IV/music/`、`hoi2/`、`hoi3/`）及 8 个 Steam Workshop 音乐 Mod 的抽样复核，Must Have 主体功能已基本实现，但存在若干影响游戏内可用性或数据质量的问题。
+
+### 9.1 当前总体状态
+
+| 阶段 | 状态 | 备注 |
+|---|---|---|
+| P0 基础搭建 | ✅ 完成 | Tauri + Vue 3 骨架可运行 |
+| P1 后端基础 | ✅ 完成 | 模型、错误类型、SQLite 迁移稳定 |
+| P2 后端领域 | ✅ 基本完成 | 音频、电台、生成器、验证器已落地 |
+| P3 命令层 | ✅ 完成 | Tauri Command 已注册 |
+| P4 前端界面 | ✅ 基本完成 | 项目管理、音频库、电台编辑、设置均已可用 |
+| P5 集成与质量 | 🔄 进行中 | 需要补齐复核发现的问题 |
+
+### 9.2 高优先级（影响游戏内可用性）
+
+| 任务 | 说明 | 计划文件 |
+|---|---|---|
+| 本地化文件写入 UTF-8 BOM | 游戏要求 `.yml` 本地化文件以 UTF-8 BOM 开头，当前为纯 UTF-8 | `plans/2026-06-15-hoi4-compatibility-and-quality-plan.md` |
+| 验证器使用配置 ffprobe 路径 | 当前硬编码 `"ffprobe"`，自定义路径下会失败 | `plans/2026-06-15-hoi4-compatibility-and-quality-plan.md` |
+| 转码强制双声道输出 | 当前只强制 44.1 kHz，未控制声道数 | `plans/2026-06-15-hoi4-compatibility-and-quality-plan.md` |
+| ID3 标签读取标题/艺术家 | 当前标题取自文件名，艺术家为空 | `plans/2026-06-15-hoi4-compatibility-and-quality-plan.md` |
+
+### 9.3 中优先级（体验与工程债务）
+
+| 任务 | 说明 |
+|---|---|
+| 导入完成后再建立项目引用 | 避免项目音频列表短暂出现 pending 条目 |
+| 生成可读电台/歌曲 ID | 替代 `station_<uuid>` / `audio_<uuid>`，便于调试和与现有 Mod 风格一致 |
+| 拖拽导入 | 提升音频库交互效率 |
+| 拆分哈希/转码并发度 | 设计文档要求哈希与转码使用不同并发度 |
+| 项目输出目录与 `.mod` 路径一致性 | 用户手动选择非标准目录时，`path` 字段可能失效 |
+
+### 9.4 低优先级 / 可选
+
+| 任务 | 说明 |
+|---|---|
+| Steam Workshop 一键上传 | 设计文档 Nice-to-have |
+| 多语言界面 | 设计文档 Nice-to-have |
+| 与 hoi4skill 共享 Clausewitz 索引验证 trigger | 设计文档 Nice-to-have |
+| 真实音频波形可视化 | 当前为占位动画 |
+| 子目录/多 `.asset` 结构 | 大型 Mod 可选组织方式，参考 Workshop 中 `pla/`、`radiochi/` 等子目录电台 |
+
+### 9.5 推荐下一步
+
+先执行 `plans/2026-06-15-hoi4-compatibility-and-quality-plan.md` 中的 4 个高优先级任务，完成后再次运行 `cargo test --lib` 与 `npm run build`，随后可进入中优先级体验项。
