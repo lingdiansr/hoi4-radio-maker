@@ -2,7 +2,9 @@ use std::path::PathBuf;
 
 use chrono::Utc;
 use hoi4_radio_maker_lib::generator::generate_mod;
-use hoi4_radio_maker_lib::models::{AudioFile, ChanceConfig, Project, Station, StationEntry};
+use hoi4_radio_maker_lib::models::{
+    AudioFile, ChanceConfig, ImportStatus, Project, Station, StationEntry,
+};
 use hoi4_radio_maker_lib::validator::validate_mod_output;
 
 #[tokio::test]
@@ -38,6 +40,7 @@ async fn test_validate_generated_mod_reports_missing_ogg() {
         volume: 0.65,
         tags: vec![],
         notes: None,
+        import_status: ImportStatus::Ready,
         created_at: now,
         updated_at: now,
     }];
@@ -54,8 +57,14 @@ async fn test_validate_generated_mod_reports_missing_ogg() {
         }],
     };
 
-    generate_mod(&project, &[station], &audio_files, &output_dir, &audio_store_dir)
-        .expect("generate_mod failed");
+    generate_mod(
+        &project,
+        &[station],
+        &audio_files,
+        &output_dir,
+        &audio_store_dir,
+    )
+    .expect("generate_mod failed");
 
     let report = validate_mod_output(&output_dir)
         .await
@@ -63,9 +72,10 @@ async fn test_validate_generated_mod_reports_missing_ogg() {
 
     assert!(!report.passed);
     assert!(
-        report.errors.iter().any(|e| {
-            e.contains("missing_song.ogg") && e.contains("does not exist")
-        }),
+        report
+            .errors
+            .iter()
+            .any(|e| { e.contains("missing_song.ogg") && e.contains("does not exist") }),
         "expected an error about the missing OGG file, got: {:?}",
         report.errors
     );
@@ -104,6 +114,7 @@ async fn test_validate_complete_mod_reports_ogg_decode_error() {
         volume: 0.65,
         tags: vec![],
         notes: None,
+        import_status: ImportStatus::Ready,
         created_at: now,
         updated_at: now,
     }];
@@ -122,8 +133,14 @@ async fn test_validate_complete_mod_reports_ogg_decode_error() {
         }],
     };
 
-    generate_mod(&project, &[station], &audio_files, &output_dir, &audio_store_dir)
-        .expect("generate_mod failed");
+    generate_mod(
+        &project,
+        &[station],
+        &audio_files,
+        &output_dir,
+        &audio_store_dir,
+    )
+    .expect("generate_mod failed");
 
     // Create an empty dummy OGG file; ffprobe will report it as not decodable.
     let ogg_path = output_dir.join("music").join("dummy_song.ogg");
@@ -135,9 +152,10 @@ async fn test_validate_complete_mod_reports_ogg_decode_error() {
 
     assert!(!report.passed);
     assert!(
-        report.errors.iter().any(|e| {
-            e.contains("dummy_song.ogg") && e.contains("not decodable")
-        }),
+        report
+            .errors
+            .iter()
+            .any(|e| { e.contains("dummy_song.ogg") && e.contains("not decodable") }),
         "expected an OGG decode error, got: {:?}",
         report.errors
     );

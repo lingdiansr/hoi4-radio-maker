@@ -1,6 +1,6 @@
 use chrono::Utc;
 use hoi4_radio_maker_lib::db::Db;
-use hoi4_radio_maker_lib::models::{AudioFile, ChanceConfig, CreateProjectRequest};
+use hoi4_radio_maker_lib::models::{AudioFile, ChanceConfig, CreateProjectRequest, ImportStatus};
 use hoi4_radio_maker_lib::station::StationRepository;
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -35,6 +35,7 @@ fn test_station_lifecycle() {
         volume: 0.75,
         tags: vec![],
         notes: None,
+        import_status: ImportStatus::Ready,
         created_at: now,
         updated_at: now,
     };

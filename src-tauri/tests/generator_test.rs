@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use chrono::Utc;
 use hoi4_radio_maker_lib::generator::generate_mod;
 use hoi4_radio_maker_lib::models::{
-    AudioFile, ChanceConfig, Modifier, Project, Station, StationEntry, Trigger,
+    AudioFile, ChanceConfig, ImportStatus, Modifier, Project, Station, StationEntry, Trigger,
 };
 
 #[test]
@@ -40,6 +40,7 @@ fn generates_expected_mod_files() {
             volume: 0.65,
             tags: vec![],
             notes: None,
+            import_status: ImportStatus::Ready,
             created_at: now,
             updated_at: now,
         },
@@ -56,6 +57,7 @@ fn generates_expected_mod_files() {
             volume: 0.8,
             tags: vec![],
             notes: None,
+            import_status: ImportStatus::Ready,
             created_at: now,
             updated_at: now,
         },
@@ -82,7 +84,9 @@ fn generates_expected_mod_files() {
                         base: None,
                         triggers: vec![
                             Trigger::HasWar { value: true },
-                            Trigger::Tag { value: "GER".to_string() },
+                            Trigger::Tag {
+                                value: "GER".to_string(),
+                            },
                         ],
                     }],
                 },
@@ -94,8 +98,14 @@ fn generates_expected_mod_files() {
         std::fs::write(audio_store_dir.join(&audio.ogg_filename), b"dummy ogg").unwrap();
     }
 
-    generate_mod(&project, &[station], &audio_files, &output_dir, &audio_store_dir)
-        .expect("generate_mod failed");
+    generate_mod(
+        &project,
+        &[station],
+        &audio_files,
+        &output_dir,
+        &audio_store_dir,
+    )
+    .expect("generate_mod failed");
 
     // Assert file existence.
     assert!(output_dir.join("descriptor.mod").is_file());
@@ -104,7 +114,10 @@ fn generates_expected_mod_files() {
         .unwrap()
         .join("test_radio.mod")
         .is_file());
-    assert!(output_dir.join("music").join("test_station.asset").is_file());
+    assert!(output_dir
+        .join("music")
+        .join("test_station.asset")
+        .is_file());
     assert!(output_dir.join("music").join("test_station.txt").is_file());
     assert!(output_dir
         .join("localisation")
@@ -117,14 +130,14 @@ fn generates_expected_mod_files() {
         .expect("failed to read descriptor.mod");
     assert!(descriptor.contains("name=\"Test Radio Mod\""));
     assert!(descriptor.contains("version=\"1.0.0\""));
-    assert!(descriptor.contains("supported_version=\"1.17.*\""));
+    assert!(descriptor.contains("supported_version=\"v1.17.*\""));
     assert!(descriptor.contains("\"Sound\""));
 
     // Assert launcher .mod content.
     let launcher = std::fs::read_to_string(output_dir.parent().unwrap().join("test_radio.mod"))
         .expect("failed to read launcher .mod");
     assert!(launcher.contains("name=\"Test Radio Mod\""));
-    assert!(launcher.contains("path=\"mod/test_radio\""));
+    assert!(launcher.contains("path=\"test_radio\""));
 
     // Assert station asset content.
     let asset = std::fs::read_to_string(output_dir.join("music").join("test_station.asset"))
@@ -195,6 +208,7 @@ fn only_includes_referenced_audio_files() {
             volume: 0.65,
             tags: vec![],
             notes: None,
+            import_status: ImportStatus::Ready,
             created_at: now,
             updated_at: now,
         },
@@ -211,6 +225,7 @@ fn only_includes_referenced_audio_files() {
             volume: 0.65,
             tags: vec![],
             notes: None,
+            import_status: ImportStatus::Ready,
             created_at: now,
             updated_at: now,
         },
@@ -230,8 +245,14 @@ fn only_includes_referenced_audio_files() {
 
     std::fs::write(audio_store_dir.join("used.ogg"), b"dummy ogg").unwrap();
 
-    generate_mod(&project, &[station], &audio_files, &output_dir, &audio_store_dir)
-        .expect("generate_mod failed");
+    generate_mod(
+        &project,
+        &[station],
+        &audio_files,
+        &output_dir,
+        &audio_store_dir,
+    )
+    .expect("generate_mod failed");
 
     let asset = std::fs::read_to_string(output_dir.join("music").join("only_used.asset"))
         .expect("failed to read asset");

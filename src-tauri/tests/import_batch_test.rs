@@ -17,7 +17,11 @@ fn create_dummy_wav(dir: &std::path::Path) -> PathBuf {
 #[tokio::test]
 async fn test_global_import_without_project() {
     // This test requires ffmpeg and ffprobe in PATH.
-    if std::process::Command::new("ffmpeg").arg("-version").output().is_err() {
+    if std::process::Command::new("ffmpeg")
+        .arg("-version")
+        .output()
+        .is_err()
+    {
         eprintln!("ffmpeg not available, skipping test");
         return;
     }
@@ -42,7 +46,7 @@ async fn test_global_import_without_project() {
 
     // Create a minimal audio record directly to verify the schema path.
     use chrono::Utc;
-    use hoi4_radio_maker_lib::models::AudioFile;
+    use hoi4_radio_maker_lib::models::{AudioFile, ImportStatus};
     let now = Utc::now();
     let audio = AudioFile {
         id: "audio_test".into(),
@@ -57,6 +61,7 @@ async fn test_global_import_without_project() {
         volume: 0.75,
         tags: vec![],
         notes: None,
+        import_status: ImportStatus::Ready,
         created_at: now,
         updated_at: now,
     };

@@ -1,7 +1,7 @@
 use chrono::Utc;
 use hoi4_radio_maker_lib::audio_repo::AudioRepository;
 use hoi4_radio_maker_lib::db::Db;
-use hoi4_radio_maker_lib::models::{AudioFile, CreateProjectRequest};
+use hoi4_radio_maker_lib::models::{AudioFile, CreateProjectRequest, ImportStatus};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -35,6 +35,7 @@ fn test_audio_file_lifecycle() {
         volume: 0.75,
         tags: vec![],
         notes: None,
+        import_status: ImportStatus::Ready,
         created_at: now,
         updated_at: now,
     };
@@ -48,7 +49,7 @@ fn test_audio_file_lifecycle() {
     assert_eq!(list[0].title, "Test Song");
 
     repo.remove_from_project(&project.id, &audio.id).unwrap();
-    repo.delete(&audio.id).unwrap();
+    repo.delete(&audio.id, true).unwrap();
     let list = repo.list(&project.id).unwrap();
     assert!(list.is_empty());
 }
