@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "rust-analyzer": {
+      "rootMarkers": [
+        "Cargo.toml",
+        "src-tauri/Cargo.toml",
+        ".git"
+      ]
+    }
+  }
+}
