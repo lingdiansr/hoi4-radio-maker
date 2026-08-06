@@ -534,6 +534,34 @@ async fn process_import_file(
         Err(e) => return mark_error(e.to_string()),
     };
 
+    // Apply embedded title/artist tags to the pending record; a failed update
+    // is not fatal to the import (the file stem stays as fallback title).
+    {
+        let db = match lock_db(state_ref) {
+            Ok(db) => db,
+            Err(e) => return mark_error(e.to_string()),
+        };
+        let repo = AudioRepository::new(&db);
+        let mut update_req = UpdateAudioFileRequest {
+            title: None,
+            artist: None,
+            volume: None,
+            tags: None,
+            notes: None,
+        };
+        if let Some(t) = &metadata.title {
+            if !t.trim().is_empty() {
+                update_req.title = Some(t.clone());
+            }
+        }
+        if let Some(artist) = &metadata.artist {
+            update_req.artist = Some(Some(artist.clone()));
+        }
+        if update_req.title.is_some() || update_req.artist.is_some() {
+            let _ = repo.update(&id, &update_req);
+        }
+    }
+
     let processing_audio = {
         let db = match lock_db(state_ref) {
             Ok(db) => db,

@@ -1,6 +1,7 @@
 use crate::error::{Hoi4RadioError, Result};
 use crate::models::AudioMetadata;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::io::AsyncReadExt;
@@ -25,6 +26,8 @@ struct FfprobeStream {
 #[derive(Debug, Deserialize)]
 struct FfprobeFormat {
     duration: Option<String>,
+    #[serde(default)]
+    tags: HashMap<String, String>,
 }
 
 /// Analyze an audio file with ffprobe and return its metadata.
@@ -68,7 +71,18 @@ pub async fn analyze_audio<P: AsRef<Path>>(
         });
     }
 
-    let parsed: FfprobeOutput = serde_json::from_slice(&output.stdout)?;
+    let json = std::str::from_utf8(&output.stdout).map_err(|e| Hoi4RadioError::AudioAnalysis {
+        message: format!("ffprobe output is not valid UTF-8: {e}"),
+    })?;
+    parse_ffprobe_output(json)
+}
+
+/// Parse ffprobe JSON output into [`AudioMetadata`].
+///
+/// Returns an `AudioAnalysis` error if the output is malformed, no audio
+/// stream is found, or the stream/format metadata is missing.
+pub(crate) fn parse_ffprobe_output(json: &str) -> Result<AudioMetadata> {
+    let parsed: FfprobeOutput = serde_json::from_str(json)?;
 
     let audio_stream = parsed
         .streams
@@ -101,10 +115,28 @@ pub async fn analyze_audio<P: AsRef<Path>>(
             message: "missing or invalid duration".to_string(),
         })?;
 
+    // ffprobe tag keys vary in case across formats (ID3v2 emits TITLE/ARTIST,
+    // Vorbis comments lower-case); normalize before lookup.
+    let tags: HashMap<String, String> = parsed
+        .format
+        .map(|f| {
+            f.tags
+                .into_iter()
+                .map(|(k, v)| (k.to_ascii_lowercase(), v))
+                .collect()
+        })
+        .unwrap_or_default();
+    let get_tag = |keys: &[&str]| {
+        keys.iter()
+            .find_map(|k| tags.get(&k.to_ascii_lowercase()).cloned())
+    };
+
     Ok(AudioMetadata {
         duration_secs,
         sample_rate,
         channels,
+        title: get_tag(&["title", "name", "track"]),
+        artist: get_tag(&["artist", "author", "performer"]),
     })
 }
 
@@ -252,5 +284,20 @@ mod tests {
     fn transcode_args_force_stereo() {
         let args = transcode_args("input.mp3", "output.ogg");
         assert!(args.windows(2).any(|pair| pair == ["-ac", "2"]));
+    }
+
+    #[test]
+    fn parse_ffprobe_extracts_id3_tags() {
+        let json = r#"{
+            "streams": [{"codec_type": "audio", "sample_rate": "44100", "channels": 2}],
+            "format": {"duration": "123.45", "tags": {"title": "Test Title", "artist": "Test Artist"}}
+        }"#;
+
+        let meta = parse_ffprobe_output(json).unwrap();
+        assert_eq!(meta.duration_secs, 123.45);
+        assert_eq!(meta.sample_rate, 44100);
+        assert_eq!(meta.channels, 2);
+        assert_eq!(meta.title, Some("Test Title".to_string()));
+        assert_eq!(meta.artist, Some("Test Artist".to_string()));
     }
 }

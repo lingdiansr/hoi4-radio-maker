@@ -80,6 +80,10 @@ pub struct AudioMetadata {
     pub duration_secs: f64,
     pub sample_rate: u32,
     pub channels: u32,
+    /// Title from the file's embedded tags (ID3 etc.), if present.
+    pub title: Option<String>,
+    /// Artist from the file's embedded tags (ID3 etc.), if present.
+    pub artist: Option<String>,
 }
 
 /// A music station within a project.
