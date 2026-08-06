@@ -75,7 +75,9 @@ fn write_descriptor_mod(project: &Project, output_dir: &Path) -> Result<()> {
     writeln!(
         file,
         "supported_version=\"{}\"",
-        escape_hoi4(&crate::hoi4_version::extract_supported_version(&project.supported_version))
+        escape_hoi4(&crate::hoi4_version::extract_supported_version(
+            &project.supported_version
+        ))
     )?;
     write!(file, "tags={{")?;
     for tag in &project.tags {
@@ -101,7 +103,9 @@ fn write_launcher_mod(project: &Project, output_dir: &Path) -> Result<()> {
     writeln!(
         file,
         "supported_version=\"{}\"",
-        escape_hoi4(&crate::hoi4_version::extract_supported_version(&project.supported_version))
+        escape_hoi4(&crate::hoi4_version::extract_supported_version(
+            &project.supported_version
+        ))
     )?;
 
     Ok(())
@@ -196,13 +200,12 @@ fn format_trigger(trigger: &Trigger) -> String {
     }
 }
 
-fn write_localisation(
-    project: &Project,
-    audio_files: &[AudioFile],
-    loc_dir: &Path,
-) -> Result<()> {
+fn write_localisation(project: &Project, audio_files: &[AudioFile], loc_dir: &Path) -> Result<()> {
     let path = loc_dir.join(format!("{}_music_l_simp_chinese.yml", project.id));
     let mut file = File::create(&path)?;
+
+    // HOI4 only loads localisation files that start with a UTF-8 BOM.
+    file.write_all("\u{FEFF}".as_bytes())?;
 
     writeln!(file, "l_simp_chinese:")?;
     writeln!(
@@ -213,12 +216,7 @@ fn write_localisation(
     )?;
 
     for audio in audio_files {
-        writeln!(
-            file,
-            " {}:0 \"{}\"",
-            audio.id,
-            escape_hoi4(&audio.title)
-        )?;
+        writeln!(file, " {}:0 \"{}\"", audio.id, escape_hoi4(&audio.title))?;
     }
 
     Ok(())
@@ -232,9 +230,55 @@ fn escape_hoi4(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::{ImportStatus, Project};
+    use chrono::Utc;
+    use std::path::PathBuf;
 
     #[test]
     fn escape_hoi4_handles_quotes_and_backslashes() {
         assert_eq!(escape_hoi4(r#"a"b\c"#), r#"a\"b\\c"#);
+    }
+
+    #[test]
+    fn generated_localisation_has_utf8_bom() {
+        let tmp = tempfile::tempdir().unwrap();
+        let loc_dir = tmp.path().join("localisation").join("simp_chinese");
+        std::fs::create_dir_all(&loc_dir).unwrap();
+
+        let project = Project {
+            id: "my_project".to_string(),
+            name: "My Project".to_string(),
+            version: "0.1.0".to_string(),
+            supported_version: "1.14.*".to_string(),
+            tags: vec!["Sound".to_string()],
+            author: None,
+            output_dir: PathBuf::from("/tmp/my_project"),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        let audio = AudioFile {
+            id: "audio_001".to_string(),
+            source_hash: "abc".to_string(),
+            title: "Test Song".to_string(),
+            artist: Some("Test Artist".to_string()),
+            source_path: PathBuf::from("/tmp/test.mp3"),
+            ogg_filename: "audio_001.ogg".to_string(),
+            duration_secs: 120.0,
+            sample_rate: 44100,
+            channels: 2,
+            volume: 0.75,
+            tags: vec![],
+            notes: None,
+            import_status: ImportStatus::Ready,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        write_localisation(&project, &[audio], &loc_dir).unwrap();
+
+        let path = loc_dir.join("my_project_music_l_simp_chinese.yml");
+        let bytes = std::fs::read(&path).unwrap();
+        assert_eq!(&bytes[..3], &[0xEF, 0xBB, 0xBF]);
     }
 }
