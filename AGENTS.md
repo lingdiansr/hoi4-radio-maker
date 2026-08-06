@@ -19,9 +19,9 @@ Vue SFC → Pinia store → src/api/client.ts (invokeCommand) → #[tauri::comma
 
 - **28 Tauri commands** registered in `src-tauri/src/lib.rs` `invoke_handler` (project 5 / audio 9 / station 9 / generator+validator 2 / settings 3). New commands MUST be registered there.
 - **AppState** (`commands.rs`) holds `Mutex<Db>`, a `cancel_import` `AtomicBool`, and an `AsyncMutex<HashMap<String, watch::Sender<bool>>>` of active transcodes. Acquire the DB via the `lock_db(&state)` helper.
-- **Import pipeline** (`import_audio_batch`): insert `Pending` record → `futures::stream::iter(...).buffer_unordered(settings.import_concurrency)` (default 8) → `process_import_file` per file (BLAKE3 hash dedup → `analyze_audio` via ffprobe → `start_processing` → `transcode_to_ogg`) → emits `import:started` / `import:file` / `import:completed` / `import:cancelled` Tauri events keyed by `session_id`. Cancellation per file via `watch` channel; `transcode_to_ogg` selects on it and kills ffmpeg.
+- **Import pipeline** (`import_audio_batch`): insert `Pending` record → `futures::stream::iter(...).buffer_unordered(settings.import_concurrency)` (default 8) → `process_import_file` per file (BLAKE3 hash dedup → `analyze_audio` via ffprobe, ID3 title/artist applied to the record → `start_processing` → `transcode_to_ogg`) → emits `import:started` / `import:file` / `import:completed` / `import:cancelled` Tauri events keyed by `session_id`. Cancellation per file via `watch` channel; `transcode_to_ogg` selects on it and kills ffmpeg.
 - **Mod generation** (`generate_project_mod`): `generator::generate_mod` clears/rebuilds `output_dir`, writes `descriptor.mod`, launcher `.mod` (in the parent dir, `path` field is the bare folder name), `music/<station_id>.asset` + `.txt`, copies referenced OGGs from the global store (`<data_dir>/hoi4-radio-maker/audio/`), and writes `localisation/simp_chinese/<project_id>_music_l_simp_chinese.yml`.
-- **Validation** (`validate_project_mod`): `validator::validate_mod_output` parses `.asset`/`.txt` with regex, checks OGG decodability and ID naming. NOTE: it hard-codes `"ffprobe"` — the settings path is NOT passed through (known gap).
+- **Validation** (`validate_project_mod`): `validator::validate_mod_output(output_dir, ffprobe_path)` parses `.asset`/`.txt` with regex, checks OGG decodability and ID naming; the configured ffprobe path from settings is passed through (falls back to `ffprobe`).
 - **Settings**: single JSON blob under `settings` key in the `settings` table; `SettingsResponse` adds transient `detected_supported_version` + `ffmpeg_available`.
 - **Errors**: every command returns `Result<T, Hoi4RadioError>`; the error serializes as `{ type, message }` (`serde(tag = "type", rename_all = "snake_case")`, 11 variants in `src-tauri/src/error.rs`).
 
@@ -61,7 +61,7 @@ bun run tauri android dev | build           # Android targets
 - Log with `tracing::{info,debug,warn,error}!` — never `println!`. Logs flow to stdout, `<data_dir>/hoi4-radio-maker/logs/hoi4-radio-maker.log`, and (dev) webview via `tauri-plugin-log`.
 - Persistence pattern: `Db` (in `db.rs`) owns the `rusqlite::Connection` and all CRUD; `AudioRepository`/`StationRepository` are thin wrappers over `&Db` that commands call. Add repo methods that forward to `Db`.
 - Schema: 6 tables — `projects`, `audio_files`, `project_audio_files`, `stations`, `station_entries`, `settings`. Migrations live in `db.rs` (`migrate` + legacy-schema detection).
-- Transcode contract: Ogg Vorbis, `-ar 44100`, libvorbis quality 4 (no `-ac` channel flag — known gap). Source formats: mp3/flac/wav/ogg/m4a/aac/wma.
+- Transcode contract: Ogg Vorbis, `-ar 44100`, `-ac 2` (forced stereo), libvorbis quality 4. Source formats: mp3/flac/wav/ogg/m4a/aac/wma.
 - `ImportStatus`: `pending | processing | ready | error | cancelled`; only `ready` audio may enter projects/stations.
 - ASCII-safe IDs (`audio_<uuid>` / `station_<uuid>`); `sanitize_folder_name` in `commands.rs` mirrors `src/utils/sanitize.ts`.
 
@@ -100,10 +100,10 @@ bun run tauri android dev | build           # Android targets
 
 ## Testing & QA
 
-- **Unit tests** (in-module `#[cfg(test)]`, 22 across 5 modules): `commands.rs` (sanitize/remove-files), `db.rs` (audio update/batch), `generator.rs` (escape_hoi4), `hoi4_version.rs` (10, version extraction), `station.rs` (find_by_name/delete). All synchronous `#[test]`.
+- **Unit tests** (in-module `#[cfg(test)]`, 26 across 7 modules): `commands.rs` (sanitize/remove-files), `db.rs` (audio update/batch), `generator.rs` (escape_hoi4, localisation UTF-8 BOM), `hoi4_version.rs` (10, version extraction), `station.rs` (find_by_name/delete), `audio.rs` (transcode args force stereo, ffprobe ID3 parsing), `validator.rs` (custom ffprobe path). All synchronous `#[test]`.
 - **Integration tests** (`src-tauri/tests/`, 10 tests in 8 files): lifecycle tests (`db_test`, `station_test`, `audio_repo_test`, `models_test`), output tests (`generator_test` x2), validation (`validator_test` x2, `#[tokio::test]`), import (`import_batch_test`). Pattern: `tempfile::tempdir()` + `Db::open(tmp/...app.db)`; dummy OGG/WAV fixtures are hand-written bytes.
 - No `[dev-dependencies]` — `tempfile`/`tokio`/`chrono` are regular deps.
 - Real ffmpeg/ffprobe required for: `import_batch_test` (has skip guard) and `validator_test::test_validate_complete_mod_reports_ogg_decode_error` (implicit, no guard).
-- **Known coverage gaps** (features also unimplemented): no tests for localisation UTF-8 BOM, stereo (`-ac 2`) transcode, custom ffprobe path in validator, or ID3 title/artist extraction. `analyze_audio`/import accept `ffprobe_path: Option<&str>` but only `None` is tested.
+- **Remaining coverage notes**: transcode and ID3 tests assert argument lists / JSON parsing, not real ffmpeg round-trips; `analyze_audio`'s `Some(ffprobe_path)` branch is untested (the validator's is).
 - Frontend has no automated tests; `bun run build` (vue-tsc) is the only type gate. E2E debugging is possible via the dev-mcp-bridge feature + Playwright tooling (see `docs/superpowers/specs/2026-06-15-logging-design.md`).
 - Commits follow Conventional Commits (`feat:`/`fix:`/`refactor:`/`chore:`); the compat plan at `docs/superpowers/plans/2026-06-15-hoi4-compatibility-and-quality-plan.md` defines the TDD (failing test → impl → pass) workflow used for backend fixes.

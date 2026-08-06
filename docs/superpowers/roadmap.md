@@ -161,16 +161,18 @@ Task 6.5 → Task 9 → Task 9.5 → Task 11
 | P2 后端领域 | ✅ 基本完成 | 音频、电台、生成器、验证器已落地 |
 | P3 命令层 | ✅ 完成 | Tauri Command 已注册 |
 | P4 前端界面 | ✅ 基本完成 | 项目管理、音频库、电台编辑、设置均已可用 |
-| P5 集成与质量 | 🔄 进行中 | 需要补齐复核发现的问题 |
+| P5 集成与质量 | 🔄 进行中 | 高优先级兼容性问题已修复（9.2），剩余中优先级体验项（9.3） |
 
-### 9.2 高优先级（影响游戏内可用性）
+### 9.2 高优先级（影响游戏内可用性）— ✅ 已完成
 
-| 任务 | 说明 | 计划文件 |
-|---|---|---|
-| 本地化文件写入 UTF-8 BOM | 游戏要求 `.yml` 本地化文件以 UTF-8 BOM 开头，当前为纯 UTF-8 | `plans/2026-06-15-hoi4-compatibility-and-quality-plan.md` |
-| 验证器使用配置 ffprobe 路径 | 当前硬编码 `"ffprobe"`，自定义路径下会失败 | `plans/2026-06-15-hoi4-compatibility-and-quality-plan.md` |
-| 转码强制双声道输出 | 当前只强制 44.1 kHz，未控制声道数 | `plans/2026-06-15-hoi4-compatibility-and-quality-plan.md` |
-| ID3 标签读取标题/艺术家 | 当前标题取自文件名，艺术家为空 | `plans/2026-06-15-hoi4-compatibility-and-quality-plan.md` |
+| 任务 | 说明 | 状态 | 提交 |
+|---|---|---|---|
+| 本地化文件写入 UTF-8 BOM | 游戏要求 `.yml` 本地化文件以 UTF-8 BOM 开头 | ✅ 完成 | `dfcb175` |
+| 验证器使用配置 ffprobe 路径 | `validate_mod_output` 从 settings 读取 ffprobe 路径 | ✅ 完成 | `d3f474c` |
+| 转码强制双声道输出 | ffmpeg 参数强制 `-ac 2` 立体声输出 | ✅ 完成 | `c8b5c97` |
+| ID3 标签读取标题/艺术家 | 导入时读取嵌入 title/artist 写入记录 | ✅ 完成 | `29f7702` |
+
+> 4 项均按 `plans/2026-06-15-hoi4-compatibility-and-quality-plan.md` 的 TDD 流程实现（失败测试 → 实现 → 通过），已合并至 main。
 
 ### 9.3 中优先级（体验与工程债务）
 
@@ -194,4 +196,4 @@ Task 6.5 → Task 9 → Task 9.5 → Task 11
 
 ### 9.5 推荐下一步
 
-先执行 `plans/2026-06-15-hoi4-compatibility-and-quality-plan.md` 中的 4 个高优先级任务，完成后再次运行 `cargo test --lib` 与 `npm run build`，随后可进入中优先级体验项。
+`plans/2026-06-15-hoi4-compatibility-and-quality-plan.md` 的 4 个高优先级任务已全部完成并合并至 main（`dfcb175` / `c8b5c97` / `d3f474c` / `29f7702`），`cargo test --lib` 26 项单元测试与 10 项集成测试全部通过。下一步进入 9.3 中优先级体验项，建议先做「生成可读电台/歌曲 ID」或「导入完成后再建立项目引用」。
