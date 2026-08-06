@@ -4,16 +4,16 @@ use crate::db::{BatchImportResult, Db};
 use crate::error::{Hoi4RadioError, Result};
 use crate::generator::generate_mod;
 use crate::models::{
-    AudioFile, BatchImportFailedFile, BatchUpdateAudioFileRequest, ChanceConfig, CreateProjectRequest,
-    ImportStatus, Project, UpdateAudioFileRequest, UpdateProjectRequest,
+    AudioFile, BatchImportFailedFile, BatchUpdateAudioFileRequest, ChanceConfig,
+    CreateProjectRequest, ImportStatus, Project, UpdateAudioFileRequest, UpdateProjectRequest,
 };
 use crate::settings::{Settings, SettingsResponse};
 use crate::station::StationRepository;
 use crate::validator::validate_mod_output;
 use chrono::Utc;
 use futures::stream::StreamExt;
-use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -159,7 +159,16 @@ fn detect_system_user() -> Option<String> {
 
 fn sanitize_folder_name(name: &str) -> String {
     name.trim()
-        .replace(|c: char| c.is_ascii_control() || matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' | '.'), "_")
+        .replace(
+            |c: char| {
+                c.is_ascii_control()
+                    || matches!(
+                        c,
+                        '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' | '.'
+                    )
+            },
+            "_",
+        )
         .replace(' ', "_")
 }
 
@@ -243,11 +252,7 @@ pub fn update_project(
 }
 
 #[tauri::command]
-pub fn delete_project(
-    state: State<'_, AppState>,
-    id: String,
-    delete_files: bool,
-) -> Result<()> {
+pub fn delete_project(state: State<'_, AppState>, id: String, delete_files: bool) -> Result<()> {
     let db = lock_db(&state)?;
     let project = db
         .get_project(&id)?
@@ -318,9 +323,7 @@ pub fn list_all_audio_files(state: State<'_, AppState>) -> Result<Vec<AudioFile>
 fn require_audio_ready(repo: &AudioRepository, id: &str) -> Result<AudioFile> {
     match repo.get(id)? {
         Some(audio) if audio.import_status == ImportStatus::Ready => Ok(audio),
-        Some(_) => Err(Hoi4RadioError::AudioNotReady {
-            id: id.to_string(),
-        }),
+        Some(_) => Err(Hoi4RadioError::AudioNotReady { id: id.to_string() }),
         None => Err(Hoi4RadioError::Other {
             message: format!("audio file not found: {id}"),
         }),
@@ -463,7 +466,12 @@ async fn process_import_file(
     let mark_error = |message: String| -> ImportOutcome {
         let db = match lock_db(state_ref) {
             Ok(db) => db,
-            Err(_) => return ImportOutcome::Failed { path: path_str.clone(), message },
+            Err(_) => {
+                return ImportOutcome::Failed {
+                    path: path_str.clone(),
+                    message,
+                }
+            }
         };
         let repo = AudioRepository::new(&db);
         let _ = repo.update_status(&id, ImportStatus::Error);
@@ -477,7 +485,10 @@ async fn process_import_file(
                 audio: error_audio,
             },
         );
-        ImportOutcome::Failed { path: path_str.clone(), message }
+        ImportOutcome::Failed {
+            path: path_str.clone(),
+            message,
+        }
     };
 
     if is_import_cancelled(state_ref) {
@@ -546,7 +557,8 @@ async fn process_import_file(
 
     let cancel_rx = register_transcode(state_ref, &id).await;
     let ogg_path = audio_store_dir.join(&processing_audio.ogg_filename);
-    let transcode_result = transcode_to_ogg(&source_path, &ogg_path, ffmpeg_path, Some(cancel_rx)).await;
+    let transcode_result =
+        transcode_to_ogg(&source_path, &ogg_path, ffmpeg_path, Some(cancel_rx)).await;
     unregister_transcode(state_ref, &id).await;
 
     match transcode_result {
@@ -1004,15 +1016,16 @@ pub async fn validate_project_mod(
     state: State<'_, AppState>,
     project_id: String,
 ) -> Result<crate::validator::ValidationReport> {
-    let output_dir = {
+    let (output_dir, ffprobe_path) = {
         let db = lock_db(&state)?;
+        let settings = crate::settings::Settings::get(&db)?;
         match db.get_project(&project_id)? {
-            Some(project) => project.output_dir,
+            Some(project) => (project.output_dir, settings.ffprobe_path),
             None => return Err(Hoi4RadioError::ProjectNotFound { id: project_id }),
         }
     };
 
-    validate_mod_output(&output_dir).await
+    validate_mod_output(&output_dir, ffprobe_path.as_deref()).await
 }
 
 #[tauri::command]

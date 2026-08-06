@@ -66,7 +66,7 @@ async fn test_validate_generated_mod_reports_missing_ogg() {
     )
     .expect("generate_mod failed");
 
-    let report = validate_mod_output(&output_dir)
+    let report = validate_mod_output(&output_dir, None)
         .await
         .expect("validate_mod_output failed");
 
@@ -146,7 +146,7 @@ async fn test_validate_complete_mod_reports_ogg_decode_error() {
     let ogg_path = output_dir.join("music").join("dummy_song.ogg");
     std::fs::write(&ogg_path, b"").expect("failed to write dummy ogg");
 
-    let report = validate_mod_output(&output_dir)
+    let report = validate_mod_output(&output_dir, None)
         .await
         .expect("validate_mod_output failed");
 
