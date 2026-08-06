@@ -52,7 +52,9 @@ pub async fn analyze_audio<P: AsRef<Path>>(
         .await
         .map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => Hoi4RadioError::AudioAnalysis {
-                message: format!("{binary} not found. Please install ffmpeg or specify the path in settings."),
+                message: format!(
+                    "{binary} not found. Please install ffmpeg or specify the path in settings."
+                ),
             },
             _ => Hoi4RadioError::Io {
                 message: e.to_string(),
@@ -84,9 +86,11 @@ pub async fn analyze_audio<P: AsRef<Path>>(
             message: "missing or invalid sample rate".to_string(),
         })?;
 
-    let channels = audio_stream.channels.ok_or_else(|| Hoi4RadioError::AudioAnalysis {
-        message: "missing channel count".to_string(),
-    })?;
+    let channels = audio_stream
+        .channels
+        .ok_or_else(|| Hoi4RadioError::AudioAnalysis {
+            message: "missing channel count".to_string(),
+        })?;
 
     let duration_secs = parsed
         .format
@@ -104,9 +108,28 @@ pub async fn analyze_audio<P: AsRef<Path>>(
     })
 }
 
+/// Build ffmpeg arguments for HOI4-compatible Ogg Vorbis output:
+/// 44.1 kHz sample rate, forced stereo (2 channels), libvorbis quality 4.
+fn transcode_args<'a>(input: &'a str, output: &'a str) -> Vec<&'a str> {
+    vec![
+        "-y",
+        "-i",
+        input,
+        "-ar",
+        "44100",
+        "-ac",
+        "2",
+        "-c:a",
+        "libvorbis",
+        "-q:a",
+        "4",
+        output,
+    ]
+}
+
 /// Transcode an audio file to Ogg Vorbis with ffmpeg.
 ///
-/// The output is encoded at 44.1 kHz using libvorbis quality 4.
+/// The output is encoded at 44.1 kHz, forced stereo using libvorbis quality 4.
 /// Returns the output path, or a `Transcoding` error if ffmpeg fails.
 /// If `cancel_rx` is provided and becomes true, the ffmpeg child process is
 /// killed and a cancellation error is returned.
@@ -120,25 +143,20 @@ pub async fn transcode_to_ogg<P: AsRef<Path>, Q: AsRef<Path>>(
     let output = output.as_ref();
     let binary = ffmpeg_path.unwrap_or("ffmpeg");
 
+    let input_str = input.to_string_lossy();
+    let output_str = output.to_string_lossy();
+    let args = transcode_args(input_str.as_ref(), output_str.as_ref());
+
     let mut child = Command::new(binary)
-        .args([
-            "-y",
-            "-i",
-            input.to_string_lossy().as_ref(),
-            "-ar",
-            "44100",
-            "-c:a",
-            "libvorbis",
-            "-q:a",
-            "4",
-            output.to_string_lossy().as_ref(),
-        ])
+        .args(&args)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => Hoi4RadioError::Transcoding {
-                message: format!("{binary} not found. Please install ffmpeg or specify the path in settings."),
+                message: format!(
+                    "{binary} not found. Please install ffmpeg or specify the path in settings."
+                ),
             },
             _ => Hoi4RadioError::Io {
                 message: e.to_string(),
@@ -201,17 +219,22 @@ pub async fn transcode_to_ogg<P: AsRef<Path>, Q: AsRef<Path>>(
 /// Compute a BLAKE3 hash of a file's contents.
 pub async fn compute_file_hash<P: AsRef<Path>>(path: P) -> Result<String> {
     let path = path.as_ref();
-    let mut file = tokio::fs::File::open(path).await.map_err(|e| Hoi4RadioError::Io {
-        message: format!("failed to open {}: {e}", path.display()),
-    })?;
+    let mut file = tokio::fs::File::open(path)
+        .await
+        .map_err(|e| Hoi4RadioError::Io {
+            message: format!("failed to open {}: {e}", path.display()),
+        })?;
 
     let mut hasher = blake3::Hasher::new();
     let mut buffer = vec![0u8; 64 * 1024];
 
     loop {
-        let n = file.read(&mut buffer).await.map_err(|e| Hoi4RadioError::Io {
-            message: format!("failed to read {}: {e}", path.display()),
-        })?;
+        let n = file
+            .read(&mut buffer)
+            .await
+            .map_err(|e| Hoi4RadioError::Io {
+                message: format!("failed to read {}: {e}", path.display()),
+            })?;
         if n == 0 {
             break;
         }
@@ -219,4 +242,15 @@ pub async fn compute_file_hash<P: AsRef<Path>>(path: P) -> Result<String> {
     }
 
     Ok(hasher.finalize().to_hex().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transcode_args_force_stereo() {
+        let args = transcode_args("input.mp3", "output.ogg");
+        assert!(args.windows(2).any(|pair| pair == ["-ac", "2"]));
+    }
 }
