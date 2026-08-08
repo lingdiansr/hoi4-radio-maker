@@ -447,15 +447,16 @@ enum ImportOutcome {
     Failed { path: String, message: String },
 }
 
-async fn process_import_file(
+async fn process_hashed_file(
     app: &AppHandle,
     session_id: &str,
-    pending_audio: &AudioFile,
+    item: (AudioFile, Result<String>),
     audio_store_dir: &Path,
     ffmpeg_path: Option<&str>,
     ffprobe_path: Option<&str>,
     project_id: Option<&str>,
 ) -> ImportOutcome {
+    let (pending_audio, source_hash) = item;
     let state = app.state::<AppState>();
     let state_ref: &AppState = &state;
 
@@ -495,7 +496,7 @@ async fn process_import_file(
         return mark_error("import cancelled".to_string());
     }
 
-    let source_hash = match compute_file_hash(&source_path).await {
+    let source_hash = match source_hash {
         Ok(hash) => hash,
         Err(e) => return mark_error(e.to_string()),
     };
@@ -664,6 +665,13 @@ pub async fn cancel_import(state: State<'_, AppState>) -> Result<()> {
     Ok(())
 }
 
+/// Transcode concurrency is half the import (hashing) concurrency so that
+/// ffmpeg subprocesses do not contend with the hashing phase for CPU; never
+/// below 1.
+fn transcode_concurrency(import_concurrency: usize) -> usize {
+    (import_concurrency / 2).max(1)
+}
+
 /// Batch import audio files into the global library.
 ///
 /// Each new file is inserted into the database immediately with a
@@ -807,9 +815,32 @@ pub async fn import_audio_batch(
         );
     }
 
-    {
+    // Phase 1: hash every file concurrently at the configured import
+    // concurrency. Hashing is cheap I/O, so it can saturate the limit.
+    let hashed: Vec<(AudioFile, Result<String>)> = {
         let mut stream = futures::stream::iter(pending_records.clone())
             .map(|pending| {
+                let pending = pending.clone();
+                async move {
+                    let hash = compute_file_hash(&pending.source_path).await;
+                    (pending, hash)
+                }
+            })
+            .buffer_unordered(concurrency);
+
+        let mut out = Vec::with_capacity(pending_records.len());
+        while let Some(item) = stream.next().await {
+            out.push(item);
+        }
+        out
+    };
+
+    // Phase 2: dedup, analyze, and transcode at half the concurrency so that
+    // ffmpeg subprocesses do not contend with each other for CPU.
+    let transcode_c = transcode_concurrency(concurrency);
+    {
+        let mut stream = futures::stream::iter(hashed)
+            .map(|(pending, source_hash)| {
                 let app = app.clone();
                 let audio_store_dir = audio_store_dir.clone();
                 let project_id = project_id.clone();
@@ -817,10 +848,10 @@ pub async fn import_audio_batch(
                 let ffmpeg_path = ffmpeg_path.map(|s| s.to_string());
                 let ffprobe_path = ffprobe_path.map(|s| s.to_string());
                 async move {
-                    process_import_file(
+                    process_hashed_file(
                         &app,
                         &session_id,
-                        &pending,
+                        (pending, source_hash),
                         &audio_store_dir,
                         ffmpeg_path.as_deref(),
                         ffprobe_path.as_deref(),
@@ -829,7 +860,7 @@ pub async fn import_audio_batch(
                     .await
                 }
             })
-            .buffer_unordered(concurrency);
+            .buffer_unordered(transcode_c);
 
         while let Some(outcome) = stream.next().await {
             match outcome {
@@ -1112,7 +1143,17 @@ pub fn get_default_library_dir(state: State<'_, AppState>) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::sanitize_folder_name;
+    use super::{sanitize_folder_name, transcode_concurrency};
+
+    #[test]
+    fn transcode_concurrency_is_half_of_import_min_one() {
+        assert_eq!(transcode_concurrency(1), 1);
+        assert_eq!(transcode_concurrency(2), 1);
+        assert_eq!(transcode_concurrency(3), 1);
+        assert_eq!(transcode_concurrency(8), 4);
+        assert_eq!(transcode_concurrency(9), 4);
+        assert_eq!(transcode_concurrency(16), 8);
+    }
 
     #[test]
     fn sanitize_replaces_invalid_and_whitespace_chars() {
