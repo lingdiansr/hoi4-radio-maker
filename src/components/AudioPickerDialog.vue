@@ -1,6 +1,6 @@
 <template>
   <v-dialog v-model="dialog" max-width="720" class="bureau-dialog">
-    <v-card class="dialog-card picker-card">
+    <v-card class="dialog-card picker-card" :class="{ 'drag-active': dragActive }">
       <div class="dialog-accent" />
       <v-card-title class="dialog-title pa-6 pb-2">
         <div class="d-flex align-center gap-3">
@@ -83,6 +83,7 @@
 import { ref, computed, watch } from 'vue'
 import { useAudioStore } from '@/stores/audio'
 import AudioImporter from '@/components/AudioImporter.vue'
+import { useAudioDrop } from '@/composables/useAudioDrop'
 
 const dialog = defineModel<boolean>({ required: true })
 
@@ -91,6 +92,7 @@ const emit = defineEmits<{
 }>()
 
 const audioStore = useAudioStore()
+const { dragActive } = useAudioDrop(() => audioStore.loadAllAudio())
 const search = ref('')
 const selected = ref<Set<string>>(new Set())
 
@@ -148,6 +150,10 @@ function formatDuration(seconds: number): string {
   border: 1px solid rgba(74, 66, 56, 0.5);
   position: relative;
   overflow: hidden;
+}
+
+.drag-active {
+  outline: 2px dashed var(--primary, #ffb020);
 }
 
 .dialog-accent {

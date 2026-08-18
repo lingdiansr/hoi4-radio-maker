@@ -12,7 +12,7 @@ use crate::station::StationRepository;
 use crate::validator::validate_mod_output;
 use chrono::Utc;
 use futures::stream::StreamExt;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -170,6 +170,27 @@ fn sanitize_folder_name(name: &str) -> String {
             "_",
         )
         .replace(' ', "_")
+}
+
+/// Convert a human-readable name into a HOI4-safe ASCII slug: lowercase
+/// alphanumerics and underscores only. Returns empty string when the input
+/// has no ASCII alphanumeric characters (e.g. pure CJK).
+pub(crate) fn slugify_id(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c.to_ascii_lowercase());
+        } else {
+            out.push('_');
+        }
+    }
+    // collapse consecutive underscores and trim edges
+    let collapsed = out
+        .split('_')
+        .filter(|p| !p.is_empty())
+        .collect::<Vec<_>>()
+        .join("_");
+    collapsed
 }
 
 /// Write the HOI4 `.mod` descriptor next to the output directory.
@@ -601,6 +622,11 @@ async fn process_hashed_file(
                 Ok(audio) => audio,
                 Err(e) => return mark_error(e.to_string()),
             };
+            // Only now that the audio is ready may it enter the project;
+            // pending/processing records must not appear in project lists.
+            if let Some(pid) = project_id {
+                let _ = repo.add_to_project(pid, &id);
+            }
             emit_import_event(
                 app,
                 "import:file",
@@ -760,12 +786,45 @@ pub async fn import_audio_batch(
     // Insert pending records for every selected path so they appear in the
     // archive immediately, even before hash/analysis begins.
     let mut pending_records: Vec<AudioFile> = Vec::with_capacity(paths.len());
+    // Track ids allocated within this batch so same-named files do not collide.
+    let mut used_ids: HashSet<String> = HashSet::new();
     {
         let db = lock_db(&state)?;
         let repo = AudioRepository::new(&db);
         for path_str in paths {
             let source_path = PathBuf::from(&path_str);
-            let id = format!("audio_{}", Uuid::new_v4().to_string().replace('-', ""));
+            let file_stem = source_path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default();
+            let mut base = slugify_id(file_stem);
+            if base.is_empty() {
+                base = "song".to_string();
+            }
+            // unique-ify against global library + this batch (in-memory set)
+            let mut id = base.clone();
+            let mut n = 2u32;
+            let mut alloc_failed = false;
+            loop {
+                if n > 10_000 {
+                    alloc_failed = true;
+                    break;
+                }
+                if used_ids.contains(&id) || repo.get(&id)?.is_some() {
+                    id = format!("{base}_{n}");
+                    n += 1;
+                } else {
+                    break;
+                }
+            }
+            if alloc_failed {
+                failed.push(BatchImportFailedFile {
+                    path: path_str,
+                    message: "could not allocate a unique id".to_string(),
+                });
+                continue;
+            }
+            used_ids.insert(id.clone());
             let ogg_filename = format!("{}.ogg", id);
             let title = source_path
                 .file_stem()
@@ -796,9 +855,6 @@ pub async fn import_audio_batch(
                     message: e.to_string(),
                 });
                 continue;
-            }
-            if let Some(pid) = project_id.as_deref() {
-                let _ = repo.add_to_project(pid, &pending.id);
             }
             pending_records.push(pending);
         }
@@ -1143,7 +1199,7 @@ pub fn get_default_library_dir(state: State<'_, AppState>) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{sanitize_folder_name, transcode_concurrency};
+    use super::{sanitize_folder_name, slugify_id, transcode_concurrency};
 
     #[test]
     fn transcode_concurrency_is_half_of_import_min_one() {
@@ -1169,6 +1225,19 @@ mod tests {
     fn sanitize_replaces_dots() {
         assert_eq!(sanitize_folder_name("My.Mod.v2"), "My_Mod_v2");
         assert_eq!(sanitize_folder_name("..."), "___");
+    }
+
+    #[test]
+    fn slugify_id_lowercases_and_underscores() {
+        assert_eq!(slugify_id("My Song Title"), "my_song_title");
+        assert_eq!(slugify_id("Song - 01 (Remix)"), "song_01_remix");
+        assert_eq!(slugify_id("Already_slug"), "already_slug");
+    }
+
+    #[test]
+    fn slugify_id_returns_empty_for_pure_cjk_or_whitespace() {
+        assert_eq!(slugify_id("东方红"), "");
+        assert_eq!(slugify_id("  "), "");
     }
 
     #[test]

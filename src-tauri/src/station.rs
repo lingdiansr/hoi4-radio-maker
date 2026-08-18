@@ -1,8 +1,9 @@
+use crate::commands::slugify_id;
 use crate::db::Db;
 use crate::error::Result;
 use crate::models::{ChanceConfig, Station, StationEntry};
 use rusqlite::params;
-use uuid::Uuid;
+use rusqlite::OptionalExtension;
 
 /// Repository for managing radio stations and their song entries.
 pub struct StationRepository<'a> {
@@ -17,9 +18,10 @@ impl<'a> StationRepository<'a> {
 
     /// Check whether a station with the given name already exists in the project.
     pub fn find_by_name(&self, project_id: &str, name: &str) -> Result<Option<Station>> {
-        let mut stmt = self.db.conn().prepare(
-            "SELECT id, name FROM stations WHERE project_id = ?1 AND name = ?2",
-        )?;
+        let mut stmt = self
+            .db
+            .conn()
+            .prepare("SELECT id, name FROM stations WHERE project_id = ?1 AND name = ?2")?;
         let mut rows = stmt.query(params![project_id, name])?;
         match rows.next()? {
             Some(row) => {
@@ -34,7 +36,26 @@ impl<'a> StationRepository<'a> {
 
     /// Create a new station within a project.
     pub fn create(&self, project_id: &str, name: &str) -> Result<Station> {
-        let id = format!("station_{}", Uuid::new_v4().to_string().replace('-', ""));
+        let mut base = slugify_id(name);
+        if base.is_empty() {
+            base = "station".to_string();
+        }
+        let mut id = base.clone();
+        let mut n = 2u32;
+        while self
+            .db
+            .conn()
+            .query_row(
+                "SELECT 1 FROM stations WHERE project_id = ?1 AND id = ?2",
+                params![project_id, &id],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some()
+        {
+            id = format!("{base}_{n}");
+            n += 1;
+        }
 
         self.db.conn().execute(
             "INSERT INTO stations (id, project_id, name) VALUES (?1, ?2, ?3)",
@@ -121,12 +142,10 @@ impl<'a> StationRepository<'a> {
 
     /// Rename an existing station.
     pub fn rename(&self, id: &str, name: &str) -> Result<()> {
-        self.db
-            .conn()
-            .execute(
-                "UPDATE stations SET name = ?1 WHERE id = ?2",
-                params![name, id],
-            )?;
+        self.db.conn().execute(
+            "UPDATE stations SET name = ?1 WHERE id = ?2",
+            params![name, id],
+        )?;
         Ok(())
     }
 

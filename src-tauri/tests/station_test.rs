@@ -46,8 +46,13 @@ fn test_station_lifecycle() {
 
     let station = repo.create(&project.id, "Main Station").unwrap();
     assert_eq!(station.name, "Main Station");
-    assert!(station.id.starts_with("station_"));
+    assert_eq!(station.id, "main_station");
     assert!(station.entries.is_empty());
+
+    // Same name in the same project gets a numeric suffix, never a duplicate id.
+    let duplicate = repo.create(&project.id, "Main Station").unwrap();
+    assert_eq!(duplicate.id, "main_station_2");
+    assert_ne!(duplicate.id, station.id);
 
     repo.add_entry(
         &station.id,
@@ -70,6 +75,7 @@ fn test_station_lifecycle() {
     assert!(fetched.entries.is_empty());
 
     repo.delete(&station.id).unwrap();
+    repo.delete(&duplicate.id).unwrap();
 
     let stations = repo.list_by_project(&project.id).unwrap();
     assert!(stations.is_empty());

@@ -1,6 +1,11 @@
 <template>
   <div class="archive-view">
-    <v-card class="archive-card" variant="elevated" rounded="xl">
+    <v-card
+      class="archive-card"
+      :class="{ 'drag-active': dragActive }"
+      variant="elevated"
+      rounded="xl"
+    >
       <v-card-title class="d-flex justify-space-between align-start pa-6">
         <div>
           <div class="text-mono text-caption text-secondary mb-1">GLOBAL ARCHIVE</div>
@@ -394,9 +399,11 @@ import { useToastStore } from '@/stores/toast'
 import AudioImporter from '@/components/AudioImporter.vue'
 import AudioEditDialog from '@/components/AudioEditDialog.vue'
 import BatchAudioEditDialog from '@/components/BatchAudioEditDialog.vue'
+import { useAudioDrop } from '@/composables/useAudioDrop'
 
 const audioStore = useAudioStore()
 const toast = useToastStore()
+const { dragActive } = useAudioDrop(() => onImported())
 const search = ref('')
 const selectedTag = ref<string | null>(null)
 const showDeleteDialog = ref(false)
@@ -600,6 +607,10 @@ async function handleDelete() {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.drag-active {
+  outline: 2px dashed var(--primary, #ffb020);
 }
 
 .archive-title {
