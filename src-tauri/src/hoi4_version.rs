@@ -11,15 +11,13 @@ pub fn detect_game_version(hoi4_dir: &Path) -> Option<String> {
     let settings_path = hoi4_dir.join("launcher-settings.json");
     let content = std::fs::read_to_string(settings_path).ok()?;
     let json: serde_json::Value = serde_json::from_str(&content).ok()?;
-    json.get("rawVersion")?.as_str().and_then(format_raw_version)
+    json.get("rawVersion")?
+        .as_str()
+        .and_then(format_raw_version)
 }
 
 fn format_raw_version(raw: &str) -> Option<String> {
-    let truncated: String = raw
-        .split('.')
-        .take(3)
-        .collect::<Vec<_>>()
-        .join(".");
+    let truncated: String = raw.split('.').take(3).collect::<Vec<_>>().join(".");
     if truncated.is_empty() {
         return None;
     }
@@ -61,12 +59,11 @@ mod tests {
     fn detects_full_launcher_version_string() {
         let dir = tempfile::tempdir().unwrap();
         let mut file = std::fs::File::create(dir.path().join("launcher-settings.json")).unwrap();
-        file.write_all(br#"{"version": "Operation Postern v1.19.1.0.b49d (31fb)", "rawVersion": "1.19.1.0"}"#)
-            .unwrap();
-        assert_eq!(
-            detect_game_version(dir.path()),
-            Some("v1.19.1".to_string())
-        );
+        file.write_all(
+            br#"{"version": "Operation Postern v1.19.1.0.b49d (31fb)", "rawVersion": "1.19.1.0"}"#,
+        )
+        .unwrap();
+        assert_eq!(detect_game_version(dir.path()), Some("v1.19.1".to_string()));
     }
 
     #[test]
@@ -76,18 +73,9 @@ mod tests {
             format_raw_version("1.19.1.0.b49d"),
             Some("v1.19.1".to_string())
         );
-        assert_eq!(
-            format_raw_version("1.19.1.0"),
-            Some("v1.19.1".to_string())
-        );
-        assert_eq!(
-            format_raw_version("1.14.7"),
-            Some("v1.14.7".to_string())
-        );
-        assert_eq!(
-            format_raw_version("1.19"),
-            Some("v1.19".to_string())
-        );
+        assert_eq!(format_raw_version("1.19.1.0"), Some("v1.19.1".to_string()));
+        assert_eq!(format_raw_version("1.14.7"), Some("v1.14.7".to_string()));
+        assert_eq!(format_raw_version("1.19"), Some("v1.19".to_string()));
         assert_eq!(format_raw_version(""), None);
     }
 

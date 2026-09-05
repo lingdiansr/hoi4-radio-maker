@@ -138,10 +138,7 @@ pub async fn validate_mod_output(
             match check_ogg_decodable(&ogg_path, ffprobe_path).await {
                 Ok(true) => {}
                 Ok(false) => {
-                    errors.push(format!(
-                        "OGG file is not decodable: {}",
-                        ogg_path.display()
-                    ));
+                    errors.push(format!("OGG file is not decodable: {}", ogg_path.display()));
                 }
                 Err(e) => {
                     errors.push(format!(
@@ -177,10 +174,7 @@ pub async fn validate_mod_output(
 
         for name in &asset_names {
             if !loc_keys.contains(name) {
-                errors.push(format!(
-                    "Song name '{}' is missing localization key",
-                    name
-                ));
+                errors.push(format!("Song name '{}' is missing localization key", name));
             }
         }
     }

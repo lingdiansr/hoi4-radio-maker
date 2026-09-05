@@ -229,7 +229,7 @@ mod tests {
     #[test]
     fn find_by_name_returns_existing_station() {
         let dir = tempfile::tempdir().unwrap();
-        let db = Db::open(&dir.path().join("test.db")).unwrap();
+        let db = Db::open(dir.path().join("test.db")).unwrap();
         let project = db
             .create_project(&CreateProjectRequest {
                 name: "Test".to_string(),
@@ -255,7 +255,7 @@ mod tests {
     #[test]
     fn delete_station_removes_station_and_entries() {
         let dir = tempfile::tempdir().unwrap();
-        let db = Db::open(&dir.path().join("test.db")).unwrap();
+        let db = Db::open(dir.path().join("test.db")).unwrap();
         let project = db
             .create_project(&CreateProjectRequest {
                 name: "Test".to_string(),

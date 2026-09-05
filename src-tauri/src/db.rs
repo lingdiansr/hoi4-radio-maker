@@ -1,10 +1,13 @@
 use chrono::{DateTime, Utc};
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use crate::error::{Hoi4RadioError, Result};
-use crate::models::{AudioFile, BatchImportFailedFile, BatchUpdateAudioFileRequest, CreateProjectRequest, ImportStatus, Project, UpdateAudioFileRequest, UpdateProjectRequest};
+use crate::models::{
+    AudioFile, BatchImportFailedFile, BatchUpdateAudioFileRequest, CreateProjectRequest,
+    ImportStatus, Project, UpdateAudioFileRequest, UpdateProjectRequest,
+};
 
 /// Result type for a batch import operation.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -245,9 +248,8 @@ impl Db {
             return Err(Hoi4RadioError::ProjectNotFound { id: id.to_string() });
         }
 
-        self.get_project(id)?.ok_or_else(|| Hoi4RadioError::ProjectNotFound {
-            id: id.to_string(),
-        })
+        self.get_project(id)?
+            .ok_or_else(|| Hoi4RadioError::ProjectNotFound { id: id.to_string() })
     }
 
     /// List all projects ordered by creation time, newest first.
@@ -311,9 +313,10 @@ impl Db {
             "UPDATE audio_files SET import_status = ?1, updated_at = ?2 WHERE id = ?3",
             params![status.as_str(), now, id],
         )?;
-        self.get_audio_file(id)?.ok_or_else(|| Hoi4RadioError::Other {
-            message: format!("audio file not found: {id}"),
-        })
+        self.get_audio_file(id)?
+            .ok_or_else(|| Hoi4RadioError::Other {
+                message: format!("audio file not found: {id}"),
+            })
     }
 
     /// Promote a pending record to processing with real hash and metadata.
@@ -343,9 +346,10 @@ impl Db {
                 id,
             ],
         )?;
-        self.get_audio_file(id)?.ok_or_else(|| Hoi4RadioError::Other {
-            message: format!("audio file not found: {id}"),
-        })
+        self.get_audio_file(id)?
+            .ok_or_else(|| Hoi4RadioError::Other {
+                message: format!("audio file not found: {id}"),
+            })
     }
 
     /// Remove all project references to an audio file.
@@ -525,12 +529,14 @@ impl Db {
         let sql = format!("UPDATE audio_files SET {} WHERE id = ?", sets.join(", "));
         params.push(rusqlite::types::Value::Text(id.to_string()));
 
-        let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+        let param_refs: Vec<&dyn rusqlite::ToSql> =
+            params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
         self.conn.execute(&sql, param_refs.as_slice())?;
 
-        self.get_audio_file(id)?.ok_or_else(|| Hoi4RadioError::Other {
-            message: format!("audio file not found: {id}"),
-        })
+        self.get_audio_file(id)?
+            .ok_or_else(|| Hoi4RadioError::Other {
+                message: format!("audio file not found: {id}"),
+            })
     }
 
     /// Batch update multiple audio files.
@@ -577,7 +583,8 @@ impl Db {
             params.push(rusqlite::types::Value::Text(id.clone()));
         }
 
-        let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+        let param_refs: Vec<&dyn rusqlite::ToSql> =
+            params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
         self.conn.execute(&sql, param_refs.as_slice())?;
 
         let mut result = Vec::new();
@@ -604,11 +611,11 @@ fn audio_file_from_row(row: &rusqlite::Row) -> Result<AudioFile> {
             })
     };
 
-    let import_status = import_status_str.parse().map_err(|e: String| {
-        Hoi4RadioError::Other {
+    let import_status = import_status_str
+        .parse()
+        .map_err(|e: String| Hoi4RadioError::Other {
             message: format!("invalid import_status in database: {e}"),
-        }
-    })?;
+        })?;
 
     Ok(AudioFile {
         id: row.get("id")?,
@@ -685,7 +692,7 @@ mod tests {
     #[test]
     fn update_audio_file_changes_fields() {
         let dir = tempfile::tempdir().unwrap();
-        let db = Db::open(&dir.path().join("test.db")).unwrap();
+        let db = Db::open(dir.path().join("test.db")).unwrap();
         let audio = dummy_audio("audio_1", "Old Title");
         db.create_audio_file(&audio).unwrap();
 
@@ -712,7 +719,7 @@ mod tests {
     #[test]
     fn batch_update_audio_files_changes_common_fields() {
         let dir = tempfile::tempdir().unwrap();
-        let db = Db::open(&dir.path().join("test.db")).unwrap();
+        let db = Db::open(dir.path().join("test.db")).unwrap();
         let a1 = dummy_audio("audio_a", "A");
         let a2 = dummy_audio("audio_b", "B");
         db.create_audio_file(&a1).unwrap();
@@ -740,7 +747,7 @@ mod tests {
     #[test]
     fn batch_update_returns_empty_when_no_ids() {
         let dir = tempfile::tempdir().unwrap();
-        let db = Db::open(&dir.path().join("test.db")).unwrap();
+        let db = Db::open(dir.path().join("test.db")).unwrap();
         let result = db
             .batch_update_audio_files(
                 &[],

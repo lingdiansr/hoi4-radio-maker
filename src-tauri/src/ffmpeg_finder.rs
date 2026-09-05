@@ -8,7 +8,10 @@ use std::path::{Path, PathBuf};
 pub fn detect_ffmpeg() -> Result<(Option<String>, Option<String>)> {
     let ffmpeg = find_executable("ffmpeg");
     let ffprobe = find_executable("ffprobe");
-    Ok((ffmpeg.map(|p| p.to_string_lossy().to_string()), ffprobe.map(|p| p.to_string_lossy().to_string())))
+    Ok((
+        ffmpeg.map(|p| p.to_string_lossy().to_string()),
+        ffprobe.map(|p| p.to_string_lossy().to_string()),
+    ))
 }
 
 fn find_executable(name: &str) -> Option<PathBuf> {
