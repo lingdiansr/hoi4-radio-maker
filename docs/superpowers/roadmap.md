@@ -161,7 +161,7 @@ Task 6.5 → Task 9 → Task 9.5 → Task 11
 | P2 后端领域 | ✅ 基本完成 | 音频、电台、生成器、验证器已落地 |
 | P3 命令层 | ✅ 完成 | Tauri Command 已注册 |
 | P4 前端界面 | ✅ 基本完成 | 项目管理、音频库、电台编辑、设置均已可用 |
-| P5 集成与质量 | 🔄 进行中 | 高优先级兼容性问题已修复（9.2），剩余中优先级体验项（9.3） |
+| P5 集成与质量 | ✅ 完成 | 高优先级兼容性（9.2）、中优先级体验（9.3）、CI 质量门禁（Task 11）均已完成 |
 
 ### 9.2 高优先级（影响游戏内可用性）— ✅ 已完成
 
@@ -199,3 +199,12 @@ Task 6.5 → Task 9 → Task 9.5 → Task 11
 9.3 剩余中优先级体验项已全部完成并合并至 main（`32e6a24`）：可读电台/歌曲 ID、导入完成后再建立项目引用、拖拽导入。`cargo test` 29 项单元测试与 9 个集成测试目标全部通过，`cargo clippy -- -D warnings` 与 `bun run build`（vue-tsc）均通过。
 
 下一步建议进入 9.4 低优先级/可选：优先「Steam Workshop 一键上传」或「子目录/多 `.asset` 结构」（对齐 Workshop 主流电台组织方式）。
+
+### 9.6 CI/CD — ✅ 已完成
+
+| 能力 | 说明 | 触发 |
+|---|---|---|
+| 质量门禁 | 前端 vue-tsc 类型检查 + Rust fmt/clippy/测试 | 每次 push 到 main 与 PR |
+| 发布构建 | tauri-action 跨平台构建 Linux/Windows/macOS 并发布到 GitHub Release | `app-v*` 版本 tag |
+
+工作流位于 `.github/workflows/ci.yml` 与 `.github/workflows/release.yml`。Rust 通过 `rust-toolchain.toml` 固定 stable + rustfmt/clippy 组件；前端用 `bun install --frozen-lockfile`；Rust 测试在 CI 安装 `ffmpeg` 后完整运行转码/验证器集成测试。
