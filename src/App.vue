@@ -26,12 +26,17 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { invokeCommand, isAppError } from '@/api/client'
+import { useAudioStore } from '@/stores/audio'
 import { useToastStore } from '@/stores/toast'
 import AppSidebar from '@/components/AppSidebar.vue'
 
 const toast = useToastStore()
+const audioStore = useAudioStore()
 
 onMounted(async () => {
+  // Listen for import progress/result events for the whole app lifetime, so
+  // drag-drop imports work from any view and progress stays live.
+  audioStore.ensureListening()
   try {
     await invokeCommand('get_settings')
   } catch (err) {

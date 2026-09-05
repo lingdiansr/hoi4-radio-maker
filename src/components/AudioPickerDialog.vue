@@ -81,9 +81,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useAudioStore } from '@/stores/audio'
+import { useAudioStore, type BatchImportResult } from '@/stores/audio'
+import { useToastStore } from '@/stores/toast'
 import AudioImporter from '@/components/AudioImporter.vue'
 import { useAudioDrop } from '@/composables/useAudioDrop'
+import { logger } from '@/utils/logger'
 
 const dialog = defineModel<boolean>({ required: true })
 
@@ -92,7 +94,8 @@ const emit = defineEmits<{
 }>()
 
 const audioStore = useAudioStore()
-const { dragActive } = useAudioDrop(() => audioStore.loadAllAudio())
+const toast = useToastStore()
+const { dragActive } = useAudioDrop((result) => onDropImported(result))
 const search = ref('')
 const selected = ref<Set<string>>(new Set())
 
@@ -124,6 +127,28 @@ function toggle(id: string) {
     selected.value.delete(id)
   } else {
     selected.value.add(id)
+  }
+}
+
+async function onDropImported(result: BatchImportResult) {
+  logger.info(
+    `audio picker: drop import finished, created=${result.created.length} existing=${result.existing.length} failed=${result.failed.length}`
+  )
+  await audioStore.loadAllAudio()
+  // Keep the ready items selected so the user can confirm them into the
+  // project immediately after a drop import.
+  for (const audio of [...result.created, ...result.existing]) {
+    if (audio.import_status === 'ready') selected.value.add(audio.id)
+  }
+  const failedCount = result.failed.length
+  if (failedCount > 0) {
+    toast.display(`已导入 ${result.created.length} 首，${failedCount} 首失败`, 'error', 6000)
+  } else {
+    toast.display(
+      `已导入 ${result.created.length} 首音频，可添加到电台`,
+      'success',
+      4000
+    )
   }
 }
 

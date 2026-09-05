@@ -5,7 +5,7 @@ import { invokeCommand } from '@/api/client'
 
 const AUDIO_EXT = ['mp3', 'flac', 'wav', 'ogg', 'm4a', 'aac', 'wma']
 
-export function useAudioDrop(onImported?: () => void) {
+export function useAudioDrop(onImported?: (result: BatchImportResult) => void) {
   const audioStore = useAudioStore()
   const dragActive = ref(false)
   let unlisten: (() => void) | undefined
@@ -17,10 +17,11 @@ export function useAudioDrop(onImported?: () => void) {
     })
     if (audio.length === 0) return
     audioStore.importing = true
+    let result: BatchImportResult | undefined
     try {
-      await invokeCommand<BatchImportResult>('import_audio_batch', { paths: audio })
+      result = await invokeCommand<BatchImportResult>('import_audio_batch', { paths: audio })
       await audioStore.loadAllAudio()
-      onImported?.()
+      onImported?.(result)
     } finally {
       audioStore.importing = false
     }

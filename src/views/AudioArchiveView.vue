@@ -25,6 +25,25 @@
 
       <v-divider opacity="0.2" />
 
+      <!-- Import progress: shown while a batch (button or drag-drop) runs -->
+      <div v-if="audioStore.importing" class="import-progress pa-4 pb-0" aria-live="polite">
+        <div class="d-flex align-center text-caption text-secondary mb-1">
+          <v-icon size="16" class="mr-2">mdi-download-multiple</v-icon>
+          正在导入
+          <span class="mx-1 text-primary">
+            {{ audioStore.importCompleted }}/{{ audioStore.importTotal }}
+          </span>
+          首…
+        </div>
+        <v-progress-linear
+          :indeterminate="audioStore.importCompleted === 0"
+          :model-value="audioStore.importTotal > 0 ? (audioStore.importCompleted / audioStore.importTotal) * 100 : 0"
+          color="primary"
+          height="4"
+          rounded
+        />
+      </div>
+
       <v-card-text class="pa-6 toolbar-area">
         <v-row>
           <v-col cols="12" md="5">
@@ -133,7 +152,12 @@
             >
               <v-card
                 class="audio-item"
-                :class="{ selected: isSelected(audio.id), processing: audio.import_status === 'processing' }"
+                :data-audio-id="audio.id"
+                :class="{
+                  selected: isSelected(audio.id),
+                  processing: audio.import_status === 'processing',
+                  'import-flash': focusImportedId === audio.id,
+                }"
                 variant="flat"
                 rounded="lg"
                 @click="toggleSelect(audio.id)"
@@ -237,7 +261,11 @@
               v-for="audio in filteredAudio"
               :key="audio.id"
               class="audio-list-item mb-2 position-relative"
-              :class="{ selected: isSelected(audio.id) }"
+              :data-audio-id="audio.id"
+              :class="{
+                selected: isSelected(audio.id),
+                'import-flash': focusImportedId === audio.id,
+              }"
               rounded="lg"
               @click="toggleSelect(audio.id)"
             >
@@ -400,10 +428,11 @@ import AudioImporter from '@/components/AudioImporter.vue'
 import AudioEditDialog from '@/components/AudioEditDialog.vue'
 import BatchAudioEditDialog from '@/components/BatchAudioEditDialog.vue'
 import { useAudioDrop } from '@/composables/useAudioDrop'
+import { logger } from '@/utils/logger'
 
 const audioStore = useAudioStore()
 const toast = useToastStore()
-const { dragActive } = useAudioDrop(() => onImported())
+const { dragActive } = useAudioDrop((result) => onImportResult(result))
 const search = ref('')
 const selectedTag = ref<string | null>(null)
 const showDeleteDialog = ref(false)
@@ -415,6 +444,9 @@ const audioToEdit = ref<AudioFile | null>(null)
 const viewMode = ref<'grid' | 'list'>('grid')
 const selectedIds = ref<string[]>([])
 const batchDeleting = ref(false)
+// Id of the audio item to flash-highlight after a drop import lands.
+const focusImportedId = ref<string | null>(null)
+let focusTimer: ReturnType<typeof setTimeout> | undefined
 
 onMounted(() => {
   audioStore.loadAllAudio()
@@ -446,6 +478,44 @@ const filteredAudio = computed(() => {
 
 function onImported() {
   audioStore.loadAllAudio()
+}
+
+/** Scroll the newest imported item into view and flash-highlight it. */
+function focusImported(id: string) {
+  const el = document.querySelector(`[data-audio-id="${CSS.escape(id)}"]`)
+  if (!el) return
+  focusImportedId.value = id
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  if (focusTimer) clearTimeout(focusTimer)
+  focusTimer = setTimeout(() => {
+    focusImportedId.value = null
+    focusTimer = undefined
+  }, 3000)
+}
+
+async function onImportResult(result: { created: unknown[]; existing: unknown[]; failed: unknown[] }) {
+  const createdCount = result.created.length
+  const existingCount = result.existing.length
+  const failedCount = result.failed.length
+  logger.info(
+    `audio archive: drop import finished, created=${createdCount} existing=${existingCount} failed=${failedCount}`
+  )
+  if (failedCount > 0) {
+    toast.display(
+      `导入完成：新增 ${createdCount} 首，已存在 ${existingCount} 首，${failedCount} 首失败`,
+      'error',
+      6000
+    )
+  } else {
+    toast.display(`导入完成：新增 ${createdCount} 首，已存在 ${existingCount} 首`, 'success', 4000)
+  }
+  await audioStore.loadAllAudio()
+  // Focus the newest imported item (last created, archive is time-ordered).
+  const done = result.created as { id: string }[]
+  const last = done.length > 0 ? done[done.length - 1].id : undefined
+  if (last) {
+    requestAnimationFrame(() => focusImported(last))
+  }
 }
 
 function formatDuration(seconds: number): string {
@@ -619,6 +689,21 @@ async function handleDelete() {
 
 .toolbar-area {
   flex: 0 0 auto;
+}
+
+.import-progress {
+  flex: 0 0 auto;
+}
+
+.import-flash {
+  animation: import-flash 1.2s ease-out;
+  border-color: #ffb020 !important;
+  box-shadow: 0 0 0 3px rgba(255, 176, 32, 0.35) !important;
+}
+
+@keyframes import-flash {
+  0% { background: rgba(255, 176, 32, 0.28); }
+  100% { background: transparent; }
 }
 
 .scroll-area {
