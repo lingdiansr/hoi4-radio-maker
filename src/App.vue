@@ -30,7 +30,7 @@ import { useAudioStore } from '@/stores/audio'
 import { useSettingsStore } from '@/stores/settings'
 import { useToastStore } from '@/stores/toast'
 import { useTheme } from '@/plugins/vuetify'
-import { applyTheme } from '@/plugins/theme'
+import { applyTheme, watchSystemTheme } from '@/plugins/theme'
 import AppSidebar from '@/components/AppSidebar.vue'
 
 const toast = useToastStore()
@@ -45,6 +45,9 @@ watch(
   (value) => applyTheme(theme, value),
   { immediate: true }
 )
+
+// While the setting is 'system', react to OS color-scheme changes live.
+watchSystemTheme(theme, () => settingsStore.settings?.theme === 'system')
 
 onMounted(async () => {
   // Listen for import progress/result events for the whole app lifetime, so

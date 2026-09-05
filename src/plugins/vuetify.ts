@@ -97,15 +97,26 @@ const radioBureauLightTheme = {
 export const themeIdForSetting = {
   dark: 'radioBureau',
   light: 'radioBureauLight',
+  system: 'system',
 } as const
 
-/** localStorage key caching the applied theme id so startup avoids a dark→light flash. */
+/** Resolve a persisted setting ('dark' | 'light' | 'system') to a concrete theme id. */
+export function resolveThemeId(setting: string | undefined | null): string {
+  const key = (setting ?? '') as keyof typeof themeIdForSetting
+  if (key === 'system') {
+    return window.matchMedia('(prefers-color-scheme: light)').matches
+      ? themeIdForSetting.light
+      : themeIdForSetting.dark
+  }
+  return themeIdForSetting[key] ?? 'radioBureau'
+}
+
+/** localStorage key caching the resolved theme id so startup avoids a flash. */
 export const THEME_STORAGE_KEY = 'hoi4-radio-maker:theme'
 
 function cachedThemeId(): string {
   try {
-    const cached = localStorage.getItem(THEME_STORAGE_KEY)
-    return cached ?? 'radioBureau'
+    return localStorage.getItem(THEME_STORAGE_KEY) ?? 'radioBureau'
   } catch {
     return 'radioBureau'
   }
