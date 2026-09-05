@@ -73,12 +73,12 @@ async function browse() {
 }
 
 .browse-btn {
-  color: #c4b5a0;
+  color: rgb(var(--v-theme-on-surface-variant));
   transition: color 0.2s ease, background 0.2s ease;
 }
 
 .browse-btn:hover {
-  color: #ffb020;
-  background: rgba(255, 176, 32, 0.1);
+  color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.1);
 }
 </style>

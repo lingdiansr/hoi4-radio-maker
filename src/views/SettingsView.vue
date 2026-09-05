@@ -286,8 +286,8 @@ async function copyLogPath() {
 
 <style scoped>
 .settings-card {
-  background: rgba(26, 23, 20, 0.7);
-  border: 1px solid rgba(74, 66, 56, 0.4);
+  background: rgba(var(--v-theme-surface), 0.7);
+  border: 1px solid rgba(var(--v-theme-outline), 0.4);
 }
 
 .save-btn {
@@ -298,16 +298,16 @@ async function copyLogPath() {
 .back-btn {
   text-transform: none;
   letter-spacing: 0.02em;
-  color: #c4b5a0;
+  color: rgb(var(--v-theme-on-surface-variant));
 }
 
 .back-btn:hover {
-  color: #ffb020;
+  color: rgb(var(--v-theme-primary));
 }
 
 .hint-card {
-  background: rgba(255, 176, 32, 0.06);
-  border: 1px solid rgba(255, 176, 32, 0.2);
+  background: rgba(var(--v-theme-primary), 0.06);
+  border: 1px solid rgba(var(--v-theme-primary), 0.2);
   height: 100%;
 }
 </style>

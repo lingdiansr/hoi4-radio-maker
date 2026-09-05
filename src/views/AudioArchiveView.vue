@@ -671,8 +671,8 @@ async function handleDelete() {
 }
 
 .archive-card {
-  background: rgba(26, 23, 20, 0.7);
-  border: 1px solid rgba(74, 66, 56, 0.4);
+  background: rgba(var(--v-theme-surface), 0.7);
+  border: 1px solid rgba(var(--v-theme-outline), 0.4);
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
@@ -680,11 +680,11 @@ async function handleDelete() {
 }
 
 .drag-active {
-  outline: 2px dashed var(--primary, #ffb020);
+  outline: 2px dashed rgb(var(--v-theme-primary));
 }
 
 .archive-title {
-  color: #ffb020;
+  color: rgb(var(--v-theme-primary));
 }
 
 .toolbar-area {
@@ -697,12 +697,12 @@ async function handleDelete() {
 
 .import-flash {
   animation: import-flash 1.2s ease-out;
-  border-color: #ffb020 !important;
-  box-shadow: 0 0 0 3px rgba(255, 176, 32, 0.35) !important;
+  border-color: rgb(var(--v-theme-primary)) !important;
+  box-shadow: 0 0 0 3px rgba(var(--v-theme-primary), 0.35) !important;
 }
 
 @keyframes import-flash {
-  0% { background: rgba(255, 176, 32, 0.28); }
+  0% { background: rgba(var(--v-theme-primary), 0.28); }
   100% { background: transparent; }
 }
 
@@ -713,23 +713,23 @@ async function handleDelete() {
 }
 
 .search-field :deep(.v-field__outline) {
-  color: rgba(74, 66, 56, 0.6);
+  color: rgba(var(--v-theme-outline), 0.6);
 }
 
 .tag-filter :deep(.v-chip) {
-  color: #c4b5a0;
-  border-color: rgba(74, 66, 56, 0.6);
+  color: rgb(var(--v-theme-on-surface-variant));
+  border-color: rgba(var(--v-theme-outline), 0.6);
 }
 
 .tag-filter :deep(.v-chip--selected) {
-  background: rgba(255, 176, 32, 0.14) !important;
-  color: #ffb020;
-  border-color: rgba(255, 176, 32, 0.4);
+  background: rgba(var(--v-theme-primary), 0.14) !important;
+  color: rgb(var(--v-theme-primary));
+  border-color: rgba(var(--v-theme-primary), 0.4);
 }
 
 .audio-item {
-  background: rgba(37, 33, 28, 0.5);
-  border: 1px solid rgba(74, 66, 56, 0.3);
+  background: rgba(var(--v-theme-surface-variant), 0.5);
+  border: 1px solid rgba(var(--v-theme-outline), 0.3);
   transition: all 0.25s ease;
   overflow: hidden;
   position: relative;
@@ -767,10 +767,10 @@ async function handleDelete() {
 
 .audio-item:hover,
 .audio-item.selected {
-  background: rgba(255, 176, 32, 0.06);
-  border-color: rgba(255, 176, 32, 0.25);
+  background: rgba(var(--v-theme-primary), 0.06);
+  border-color: rgba(var(--v-theme-primary), 0.25);
   transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 12px 24px rgba(var(--v-theme-on-background), 0.25);
 }
 
 .select-indicator {
@@ -793,13 +793,13 @@ async function handleDelete() {
 .wave-bar {
   flex: 1;
   min-width: 3px;
-  background: linear-gradient(180deg, #ffb020 0%, rgba(255, 176, 32, 0.2) 100%);
+  background: linear-gradient(180deg, rgb(var(--v-theme-primary)) 0%, rgba(var(--v-theme-primary), 0.2) 100%);
   border-radius: 2px 2px 0 0;
   transition: height 0.3s ease;
 }
 
 .audio-item:hover .wave-bar {
-  background: linear-gradient(180deg, #ffb020 0%, rgba(255, 176, 32, 0.5) 100%);
+  background: linear-gradient(180deg, rgb(var(--v-theme-primary)) 0%, rgba(var(--v-theme-primary), 0.5) 100%);
 }
 
 .audio-content {
@@ -813,7 +813,7 @@ async function handleDelete() {
 }
 
 .empty-state {
-  border: 2px dashed rgba(74, 66, 56, 0.6);
+  border: 2px dashed rgba(var(--v-theme-outline), 0.6);
   border-radius: 20px;
 }
 
@@ -829,13 +829,13 @@ async function handleDelete() {
 
 .audio-list-item:hover,
 .audio-list-item.selected {
-  background: rgba(255, 176, 32, 0.06);
-  border-color: rgba(255, 176, 32, 0.25);
+  background: rgba(var(--v-theme-primary), 0.06);
+  border-color: rgba(var(--v-theme-primary), 0.25);
 }
 
 .dialog-card {
-  background: #1a1714;
-  border: 1px solid rgba(74, 66, 56, 0.5);
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-outline), 0.5);
   position: relative;
   overflow: hidden;
 }
@@ -846,7 +846,7 @@ async function handleDelete() {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, #ff8a80 0%, rgba(255, 138, 128, 0.3) 100%);
+  background: linear-gradient(90deg, rgb(var(--v-theme-error)) 0%, rgba(var(--v-theme-error), 0.3) 100%);
 }
 
 .dialog-title {

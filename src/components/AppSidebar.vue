@@ -330,18 +330,18 @@ function formatDate(path: string) {
 
 <style scoped>
 .bureau-sider {
-  background: rgba(26, 23, 20, 0.92) !important;
+  background: rgba(var(--v-theme-surface), 0.92) !important;
   backdrop-filter: blur(10px);
-  border-right: 1px solid rgba(74, 66, 56, 0.4);
+  border-right: 1px solid rgba(var(--v-theme-outline), 0.4);
 }
 
 .brand {
-  border-bottom: 1px solid rgba(74, 66, 56, 0.3);
+  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.3);
 }
 
 .brand-title {
   letter-spacing: 0.04em;
-  color: #ffb020;
+  color: rgb(var(--v-theme-primary));
 }
 
 .create-btn {
@@ -370,23 +370,23 @@ function formatDate(path: string) {
 .project-item {
   transition: all 0.2s ease;
   border: 1px solid transparent;
-  color: #c4b5a0;
+  color: rgb(var(--v-theme-on-surface-variant));
 }
 
 .project-item:hover {
-  background: rgba(255, 176, 32, 0.08) !important;
-  border-color: rgba(255, 176, 32, 0.25);
+  background: rgba(var(--v-theme-primary), 0.08) !important;
+  border-color: rgba(var(--v-theme-primary), 0.25);
 }
 
 .project-item.v-list-item--active {
-  background: rgba(255, 176, 32, 0.14) !important;
-  border-color: rgba(255, 176, 32, 0.4);
-  color: #ffb020;
+  background: rgba(var(--v-theme-primary), 0.14) !important;
+  border-color: rgba(var(--v-theme-primary), 0.4);
+  color: rgb(var(--v-theme-primary));
 }
 
 .project-index {
   width: 28px;
-  color: #ffb020;
+  color: rgb(var(--v-theme-primary));
   font-size: 0.75rem;
   opacity: 0.7;
 }
@@ -407,7 +407,7 @@ function formatDate(path: string) {
 }
 
 .nav-link {
-  color: #c4b5a0;
+  color: rgb(var(--v-theme-on-surface-variant));
   text-transform: none;
   letter-spacing: 0.02em;
   justify-content: flex-start;
@@ -417,13 +417,13 @@ function formatDate(path: string) {
 
 .nav-link:hover,
 .nav-link.active {
-  color: #ffb020;
-  background: rgba(255, 176, 32, 0.08);
+  color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.08);
 }
 
 .dialog-card {
-  background: #1a1714;
-  border: 1px solid rgba(74, 66, 56, 0.5);
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-outline), 0.5);
   position: relative;
   overflow: hidden;
 }
@@ -434,11 +434,11 @@ function formatDate(path: string) {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, #ffb020 0%, rgba(255, 176, 32, 0.3) 100%);
+  background: linear-gradient(90deg, rgb(var(--v-theme-primary)) 0%, rgba(var(--v-theme-primary), 0.3) 100%);
 }
 
 .dialog-accent--danger {
-  background: linear-gradient(90deg, #ff8a80 0%, rgba(255, 138, 128, 0.3) 100%);
+  background: linear-gradient(90deg, rgb(var(--v-theme-error)) 0%, rgba(var(--v-theme-error), 0.3) 100%);
 }
 
 .dialog-title {

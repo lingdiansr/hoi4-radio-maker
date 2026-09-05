@@ -734,8 +734,8 @@ async function handleDelete() {
 
 <style scoped>
 .station-card {
-  background: rgba(26, 23, 20, 0.7);
-  border: 1px solid rgba(74, 66, 56, 0.4);
+  background: rgba(var(--v-theme-surface), 0.7);
+  border: 1px solid rgba(var(--v-theme-outline), 0.4);
 }
 
 .create-btn {
@@ -748,8 +748,8 @@ async function handleDelete() {
 }
 
 .entry-card {
-  background: rgba(37, 33, 28, 0.5);
-  border: 1px solid rgba(74, 66, 56, 0.3);
+  background: rgba(var(--v-theme-surface-variant), 0.5);
+  border: 1px solid rgba(var(--v-theme-outline), 0.3);
 }
 
 .entry-item {
@@ -758,8 +758,8 @@ async function handleDelete() {
 }
 
 .entry-item:hover {
-  background: rgba(255, 176, 32, 0.06) !important;
-  border-color: rgba(255, 176, 32, 0.2);
+  background: rgba(var(--v-theme-primary), 0.06) !important;
+  border-color: rgba(var(--v-theme-primary), 0.2);
 }
 
 .reorder-controls {
@@ -771,8 +771,8 @@ async function handleDelete() {
 }
 
 .modifier-card {
-  background: rgba(26, 23, 20, 0.5);
-  border-color: rgba(74, 66, 56, 0.4);
+  background: rgba(var(--v-theme-surface-variant), 0.5);
+  border-color: rgba(var(--v-theme-outline), 0.4);
 }
 
 .trigger-type {
@@ -780,13 +780,13 @@ async function handleDelete() {
 }
 
 .empty-state {
-  border: 2px dashed rgba(74, 66, 56, 0.6);
+  border: 2px dashed rgba(var(--v-theme-outline), 0.6);
   border-radius: 16px;
 }
 
 .dialog-card {
-  background: #1a1714;
-  border: 1px solid rgba(74, 66, 56, 0.5);
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-outline), 0.5);
   position: relative;
   overflow: hidden;
 }
@@ -797,11 +797,11 @@ async function handleDelete() {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, #ffb020 0%, rgba(255, 176, 32, 0.3) 100%);
+  background: linear-gradient(90deg, rgb(var(--v-theme-primary)) 0%, rgba(var(--v-theme-primary), 0.3) 100%);
 }
 
 .dialog-accent--danger {
-  background: linear-gradient(90deg, #ff8a80 0%, rgba(255, 138, 128, 0.3) 100%);
+  background: linear-gradient(90deg, rgb(var(--v-theme-error)) 0%, rgba(var(--v-theme-error), 0.3) 100%);
 }
 
 .dialog-title {

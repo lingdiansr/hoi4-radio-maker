@@ -155,8 +155,8 @@ async function save() {
 
 <style scoped>
 .dialog-card {
-  background: #1a1714;
-  border: 1px solid rgba(74, 66, 56, 0.5);
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-outline), 0.5);
   position: relative;
   overflow: hidden;
 }
@@ -167,7 +167,7 @@ async function save() {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, #ffb020 0%, rgba(255, 176, 32, 0.3) 100%);
+  background: linear-gradient(90deg, rgb(var(--v-theme-primary)) 0%, rgba(var(--v-theme-primary), 0.3) 100%);
 }
 
 .dialog-title {

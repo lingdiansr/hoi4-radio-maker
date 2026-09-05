@@ -24,21 +24,34 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { invokeCommand, isAppError } from '@/api/client'
+import { onMounted, watch } from 'vue'
+import { isAppError } from '@/api/client'
 import { useAudioStore } from '@/stores/audio'
+import { useSettingsStore } from '@/stores/settings'
 import { useToastStore } from '@/stores/toast'
+import { useTheme } from '@/plugins/vuetify'
+import { applyTheme } from '@/plugins/theme'
 import AppSidebar from '@/components/AppSidebar.vue'
 
 const toast = useToastStore()
 const audioStore = useAudioStore()
+const settingsStore = useSettingsStore()
+const theme = useTheme()
+
+// Keep the Vuetify theme in sync with the persisted settings value. The watch
+// fires once settings load (startup) and again whenever the user saves.
+watch(
+  () => settingsStore.settings?.theme,
+  (value) => applyTheme(theme, value),
+  { immediate: true }
+)
 
 onMounted(async () => {
   // Listen for import progress/result events for the whole app lifetime, so
   // drag-drop imports work from any view and progress stays live.
   audioStore.ensureListening()
   try {
-    await invokeCommand('get_settings')
+    await settingsStore.loadSettings()
   } catch (err) {
     if (isAppError(err) && err.type === 'ffmpeg_not_found') {
       toast.display(err.message, 'error', 8000)
@@ -68,11 +81,11 @@ onMounted(async () => {
 
 .radio-bureau-app {
   background:
-    radial-gradient(ellipse at 20% 0%, rgba(255, 176, 32, 0.06) 0%, transparent 45%),
-    radial-gradient(ellipse at 80% 100%, rgba(143, 158, 138, 0.05) 0%, transparent 40%),
-    #12100e !important;
+    radial-gradient(ellipse at 20% 0%, rgba(var(--v-theme-primary), 0.06) 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 100%, rgba(var(--v-theme-tertiary), 0.05) 0%, transparent 40%),
+    rgb(var(--v-theme-background)) !important;
   background-repeat: no-repeat;
-  color: #efebe3;
+  color: rgb(var(--v-theme-on-background));
   font-family: var(--font-body);
 }
 
@@ -133,14 +146,14 @@ onMounted(async () => {
 }
 
 .bureau-dialog .v-overlay__scrim {
-  background: rgba(18, 16, 14, 0.85);
+  background: rgba(var(--v-theme-background), 0.85);
   backdrop-filter: blur(2px);
 }
 
 .bureau-dialog .v-overlay__content {
   box-shadow:
-    0 24px 48px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 176, 32, 0.08);
+    0 24px 48px rgba(var(--v-theme-on-background), 0.4),
+    0 0 0 1px rgba(var(--v-theme-primary), 0.08);
 }
 
 /* Flex gap utilities (Vuetify 3 does not enable gap-* by default) */
@@ -158,15 +171,15 @@ onMounted(async () => {
 }
 
 ::-webkit-scrollbar-track {
-  background: #1a1714;
+  background: rgb(var(--v-theme-surface));
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4a4238;
+  background: rgb(var(--v-theme-outline));
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #ffb020;
+  background: rgb(var(--v-theme-primary));
 }
 </style>

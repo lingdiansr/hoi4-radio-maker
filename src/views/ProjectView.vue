@@ -126,7 +126,7 @@ async function validate() {
 }
 
 .project-header {
-  background: linear-gradient(180deg, rgba(255, 176, 32, 0.04) 0%, transparent 100%);
+  background: linear-gradient(180deg, rgba(var(--v-theme-primary), 0.04) 0%, transparent 100%);
 }
 
 .action-btn {
@@ -135,7 +135,7 @@ async function validate() {
 }
 
 .generate-btn {
-  box-shadow: 0 0 18px rgba(255, 176, 32, 0.2);
+  box-shadow: 0 0 18px rgba(var(--v-theme-primary), 0.2);
 }
 
 .bureau-tabs :deep(.v-tab) {
@@ -145,7 +145,7 @@ async function validate() {
 }
 
 .bureau-window {
-  background: rgba(18, 16, 14, 0.3);
+  background: rgba(var(--v-theme-background), 0.3);
   min-height: calc(100vh - 220px);
 }
 </style>
