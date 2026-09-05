@@ -58,11 +58,17 @@ cd src-tauri && cargo clippy -- -D warnings
 RUST_LOG=debug bun run tauri dev    # 后端 debug 级日志
 ```
 
-## 构建
+## 构建与发布
 
 ```bash
 bun run tauri build                 # 桌面发布包（Windows / Linux / macOS）
 bun run tauri android dev | build   # Android 目标
+```
+
+CI（`.github/workflows/ci.yml`）在每个 push 到 `main` 及 PR 上自动运行：前端 vue-tsc 类型检查 + Rust fmt/clippy/测试。打 `v*` 版本 tag（如 `v0.1.0`）并推送即触发发布工作流（`.github/workflows/release.yml`），由 tauri-action 跨平台构建 Linux / Windows / macOS 安装包并创建 GitHub Release 草稿。
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
 ```
 
 ## 项目结构

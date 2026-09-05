@@ -205,6 +205,6 @@ Task 6.5 → Task 9 → Task 9.5 → Task 11
 | 能力 | 说明 | 触发 |
 |---|---|---|
 | 质量门禁 | 前端 vue-tsc 类型检查 + Rust fmt/clippy/测试 | 每次 push 到 main 与 PR |
-| 发布构建 | tauri-action 跨平台构建 Linux/Windows/macOS 并发布到 GitHub Release | `app-v*` 版本 tag |
+| 发布构建 | tauri-action 跨平台构建 Linux/Windows/macOS 并发布到 GitHub Release | `v*` 版本 tag（如 `v0.1.0`） |
 
 工作流位于 `.github/workflows/ci.yml` 与 `.github/workflows/release.yml`。Rust 通过 `rust-toolchain.toml` 固定 stable + rustfmt/clippy 组件；前端用 `bun install --frozen-lockfile`；Rust 测试在 CI 安装 `ffmpeg` 后完整运行转码/验证器集成测试。

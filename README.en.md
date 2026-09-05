@@ -58,11 +58,17 @@ cd src-tauri && cargo clippy -- -D warnings
 RUST_LOG=debug bun run tauri dev    # debug-level backend logs
 ```
 
-## Build
+## Build & Release
 
 ```bash
 bun run tauri build                 # desktop bundles (Windows / Linux / macOS)
 bun run tauri android dev | build   # Android targets
+```
+
+CI (`.github/workflows/ci.yml`) runs on every push to `main` and on PRs: frontend vue-tsc type check + Rust fmt/clippy/tests. Pushing a `v*` version tag (e.g. `v0.1.0`) triggers the release workflow (`.github/workflows/release.yml`), which builds Linux / Windows / macOS installers via tauri-action and creates a draft GitHub Release.
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
 ```
 
 ## Project Structure

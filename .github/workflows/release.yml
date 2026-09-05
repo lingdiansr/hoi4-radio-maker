@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "app-v*"
+      - "v*"
 
 permissions:
   contents: write
@@ -62,9 +62,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: app-v__VERSION__
+          tagName: v__VERSION__
           releaseName: "hoi4-radio-maker v__VERSION__"
-          releaseBody: "See the assets to download and install this version."
+          releaseBody: |
+            ## hoi4-radio-maker v__VERSION__
+
+            HOI4 音乐/电台 Mod 制作桌面工具（Tauri 2 + Vue 3）。
+
+            ### 功能
+            - 项目管理：创建/编辑/删除，默认目录/作者/版本/标签预填，HOI4 版本自动探测
+            - 全局音频库：批量导入（mp3/flac/wav/ogg/m4a/aac/wma），BLAKE3 去重，自动转码 Ogg Vorbis 44.1kHz 立体声
+            - 电台编辑：多电台、播放权重与触发条件（tag/has_war/has_government/is_in_faction）、排序
+            - 一键生成完整 Mod 目录（descriptor.mod、.asset/.txt、简体中文本地化）并验证输出
+            - 明暗主题切换
+
+            ### 系统要求
+            - 需安装 ffmpeg / ffprobe（首次启动自动探测，可在设置中手动指定）
+            - Windows / macOS 安装包与 Linux deb/AppImage 见下方资产
+
+            ### 安装
+            下载对应平台安装包即可。Linux 用户若 AppImage 无法运行，请安装 libfuse2。
           releaseDraft: true
           prerelease: false
           args: --bundles ${{ matrix.bundles }}
