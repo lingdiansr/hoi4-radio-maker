@@ -27,7 +27,7 @@
 |---|---|
 | 桌面框架 | [Tauri 2](https://tauri.app/) |
 | 前端 | Vue 3（`<script setup>`）+ TypeScript + [Vite](https://vitejs.dev/) |
-| UI | [Vuetify 3](https://vuetifyjs.com/)（Material Design 3，自定义暗色主题） |
+| UI | [Vuetify 3](https://vuetifyjs.com/)（Material Design 3，radio-bureau 主题，支持浅色/深色/跟随系统） |
 | 状态管理 | Pinia · 路由 Vue Router |
 | 后端 | Rust（edition 2021） |
 | 数据库 | SQLite（rusqlite） |

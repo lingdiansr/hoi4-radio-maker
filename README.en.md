@@ -27,7 +27,7 @@ Create and manage HOI4 radio mods from scratch: import audio and transcode it to
 |---|---|
 | Desktop framework | [Tauri 2](https://tauri.app/) |
 | Frontend | Vue 3 (`<script setup>`) + TypeScript + [Vite](https://vitejs.dev/) |
-| UI | [Vuetify 3](https://vuetifyjs.com/) (Material Design 3, custom dark theme) |
+| UI | [Vuetify 3](https://vuetifyjs.com/) (Material Design 3, radio-bureau theme with light / dark / follow-system) |
 | State / routing | Pinia · Vue Router |
 | Backend | Rust (edition 2021) |
 | Database | SQLite (rusqlite) |
