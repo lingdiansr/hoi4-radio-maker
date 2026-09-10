@@ -188,17 +188,17 @@ Task 6.5 → Task 9 → Task 9.5 → Task 11
 
 | 任务 | 说明 | 状态 | 提交 |
 |---|---|---|---|
-| Steam Workshop 一键上传 | 设计文档 Nice-to-have | 🔄 待做 | |
-| 多语言界面 | 设计文档 Nice-to-have | 🔄 待做 | |
-| 与 hoi4skill 共享 Clausewitz 索引验证 trigger | 设计文档 Nice-to-have | 🔄 待做 | |
+| Steam Workshop 一键上传 | 设计文档 Nice-to-have；评估后确认上传由官方启动器提供，本工具不再实现 | ⛔ 放弃 | |
+| 多语言界面 | 前后端文案双语（简体中文主 / 英文），默认跟随系统语言，设置内可切换 | ✅ 完成 | `499d7ef` |
+| 与 hoi4skill 共享 Clausewitz 索引验证 trigger | 设计文档 Nice-to-have；现状见 9.7 | 🔄 待评估 | |
 | 真实音频波形可视化 | 当前为占位动画 | 🔄 待做 | |
 | 子目录/多 `.asset` 结构 | 每个电台输出到各自的 `music/<子目录>/`（asset/txt/ogg 同目录，Workshop 主流布局）；目录名默认由电台名生成，可按电台自定义覆盖 | ✅ 完成 | `da95f70` |
 
 ### 9.5 推荐下一步
 
-9.3 中优先级体验项已全部完成并合并至 main（`32e6a24`），9.4 的「子目录/多 `.asset` 结构」也已完成（`da95f70`）：电台级 `subdir` 字段 + 生成器按目录输出 + 验证器递归扫描 + `stations.subdir` 迁移（v2→v3）。`cargo test` 30 项单元测试与 8 个集成测试目标全部通过，`cargo clippy --all-targets -- -D warnings` 与 `bun run build`（vue-tsc）均通过。
+9.3 与 9.4 的「子目录/多 `.asset` 结构」「多语言界面」已完成并合并至 main（`32e6a24` / `da95f70` / `5c3fdd6` / `499d7ef`）；「Steam Workshop 一键上传」已确认不做。
 
-下一步建议进入 9.4 剩余项：优先「Steam Workshop 一键上传」，其次「多语言界面」。
+9.4 剩余可选项：「与 hoi4skill 共享 Clausewitz 索引验证 trigger」（现状与取舍见 9.7）、「真实音频波形可视化」。两者均为 Nice-to-have，可按需决定是否推进。
 
 ### 9.6 CI/CD — ✅ 已完成
 
@@ -208,3 +208,22 @@ Task 6.5 → Task 9 → Task 9.5 → Task 11
 | 发布构建 | tauri-action 跨平台构建 Linux/Windows/macOS 并发布到 GitHub Release | `v*` 版本 tag（如 `v0.1.0`） |
 
 工作流位于 `.github/workflows/ci.yml` 与 `.github/workflows/release.yml`。Rust 通过 `rust-toolchain.toml` 固定 stable + rustfmt/clippy 组件；前端用 `bun install --frozen-lockfile`；Rust 测试在 CI 安装 `ffmpeg` 后完整运行转码/验证器集成测试。
+
+### 9.7 「与 hoi4skill 共享 Clausewitz 索引验证 trigger」现状与评估
+
+**原始意图**（设计文档 §3.3 / §12）：电台 `.txt` 里的 `chance = { modifier = { … <trigger> } }` 目前只支持固定的 4 种条件（`has_war` / `tag` / `has_government` / `is_in_faction_with`，见 `models.rs` 的 `Trigger` 枚举），生成时直接拼字符串（`generator.rs` 的 `format_trigger`）。验证器只检查 `.asset`/`.txt` 一致性、OGG 可解码性、本地化键与 ID 字符集，**不校验脚本语义**。原意是复用 hoi4skill 的 Clausewitz 索引校验这些 trigger 关键字/取值（如国家 tag、意识形态）是否真实存在。
+
+**实际核查结论**（2026-08-17，检查本机 `~/code/Other/hoi4skill`）：
+
+| 检查项 | 结果 |
+|---|---|
+| hoi4skill 是否提供可共享索引 | 是。`hoi4skill-cli build-game-index --game-root <路径>` 输出 JSON；另有 `build-clausewitz-library` / `query-clausewitz-library` |
+| 索引是否含 trigger 词表 | **否**。`game_index.rs` 的 `GameIndex` 含 `effects`、`modifiers`，**没有 `triggers` 字段** |
+| 索引可覆盖本项目的哪些取值 | `country_tags`（可用于 `tag` / `is_in_faction_with`）、`ideologies`（可用于 `has_government`）；`has_war` 是布尔量无需索引 |
+| 是否检 trigger 语义 | 仅结构化处理 `trigger` 块上下文（`validate.rs` 的 `check_trigger_contexts`），无关键字合法性词表 |
+
+**结论**：原设想（共享索引校验 trigger 关键字）当前**无法直接成立**——共享索引不含 trigger 词表。可选路径：
+
+1. **放弃**：本项目 trigger 是封闭枚举（4 种）、由生成器拼写，拼错风险极低，收益有限。
+2. **窄化实现（推荐）**：不引入跨仓库耦合，仅用本项目已有的 `hoi4_game_dir` 设置读取游戏自带文件，校验取值——`common/country_tags/*.txt` 校验 `tag` / `is_in_faction_with`，`common/ideologies/*.txt` 校验 `has_government`；未配置游戏目录时跳过。覆盖 4 种条件中的 3 种。
+3. **完整共享**：先给 hoi4skill 的 `GameIndex` 增加 trigger 词表，再让本项目消费其 JSON。功能最全，但引入跨仓库依赖与版本协调成本。
