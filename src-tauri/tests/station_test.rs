@@ -54,6 +54,27 @@ fn test_station_lifecycle() {
     assert_eq!(duplicate.id, "main_station_2");
     assert_ne!(duplicate.id, station.id);
 
+    // Output subdirectory defaults to None and round-trips through set_subdir.
+    assert!(station.subdir.is_none());
+    repo.set_subdir(&station.id, Some("radio_chi")).unwrap();
+    assert_eq!(
+        repo.get(&station.id).unwrap().unwrap().subdir.as_deref(),
+        Some("radio_chi")
+    );
+    let listed = repo.list_by_project(&project.id).unwrap();
+    assert_eq!(
+        listed
+            .iter()
+            .find(|s| s.id == station.id)
+            .unwrap()
+            .subdir
+            .as_deref(),
+        Some("radio_chi")
+    );
+    // Clearing the subdirectory restores flat output.
+    repo.set_subdir(&station.id, None).unwrap();
+    assert!(repo.get(&station.id).unwrap().unwrap().subdir.is_none());
+
     repo.add_entry(
         &station.id,
         &audio.id,

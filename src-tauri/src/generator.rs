@@ -38,11 +38,20 @@ pub fn generate_mod(
     let music_dir = output_dir.join("music");
     fs::create_dir_all(&music_dir)?;
 
-    for audio in audio_files {
-        let src = audio_store_dir.join(&audio.ogg_filename);
-        let dst = music_dir.join(&audio.ogg_filename);
-        if src.exists() {
-            fs::copy(&src, &dst)?;
+    // Flat stations (or projects with no stations at all) keep every project
+    // OGG in `music/`, exactly as before. When every station has its own
+    // subdirectory, each station's OGGs are copied next to its .asset/.txt
+    // instead, matching the common Workshop layout.
+    let has_flat_station = stations
+        .iter()
+        .any(|s| s.subdir.as_deref().unwrap_or("").is_empty());
+    if has_flat_station || stations.is_empty() {
+        for audio in audio_files {
+            let src = audio_store_dir.join(&audio.ogg_filename);
+            let dst = music_dir.join(&audio.ogg_filename);
+            if src.exists() {
+                fs::copy(&src, &dst)?;
+            }
         }
     }
 
@@ -52,8 +61,36 @@ pub fn generate_mod(
 
     // 5. Generate per-station files.
     for station in stations {
-        write_station_asset(station, &music_dir, &audio_map)?;
-        write_station_txt(station, &music_dir, &audio_map)?;
+        let subdir = station.subdir.as_deref().filter(|s| !s.is_empty());
+        let dir = match subdir {
+            Some(sub) => {
+                let d = music_dir.join(sub);
+                fs::create_dir_all(&d)?;
+                d
+            }
+            None => music_dir.clone(),
+        };
+
+        write_station_asset(station, &dir, &audio_map)?;
+        write_station_txt(station, &dir, &audio_map)?;
+
+        if subdir.is_some() {
+            // Copy only this station's referenced OGGs next to its own
+            // .asset/.txt, so `file = "song.ogg"` resolves in that directory.
+            for entry in &station.entries {
+                let Some(audio) = audio_map.get(entry.audio_file_id.as_str()) else {
+                    continue;
+                };
+                let dst = dir.join(&audio.ogg_filename);
+                if dst.exists() {
+                    continue;
+                }
+                let src = audio_store_dir.join(&audio.ogg_filename);
+                if src.exists() {
+                    fs::copy(&src, &dst)?;
+                }
+            }
+        }
     }
 
     // 6. Create localisation/simp_chinese/ subdirectory.

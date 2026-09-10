@@ -91,6 +91,10 @@ pub struct AudioMetadata {
 pub struct Station {
     pub id: String,
     pub name: String,
+    /// Output subdirectory under `music/`; `None` (or empty) keeps the
+    /// station's files flat in `music/`.
+    #[serde(default)]
+    pub subdir: Option<String>,
     pub entries: Vec<StationEntry>,
 }
 

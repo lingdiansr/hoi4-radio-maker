@@ -54,37 +54,59 @@ pub async fn validate_mod_output(
     let mut station_ids: HashSet<String> = HashSet::new();
 
     if music_dir.is_dir() {
-        // Parse .asset files.
-        let mut entries = tokio::fs::read_dir(&music_dir).await?;
-        while let Some(entry) = entries.next_entry().await? {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("asset")
-                && tokio::fs::metadata(&path).await?.is_file()
-            {
-                let content = tokio::fs::read_to_string(&path).await?;
-                for cap in name_re.captures_iter(&content) {
-                    asset_names.insert(cap[1].to_string());
+        // Collect music/ plus every nested subdirectory (stations may be
+        // organised as music/<subdir>/, as in most Workshop radio mods).
+        let mut dirs: Vec<PathBuf> = vec![music_dir.clone()];
+        let mut i = 0;
+        while i < dirs.len() {
+            let current = dirs[i].clone();
+            i += 1;
+            let mut entries = tokio::fs::read_dir(&current).await?;
+            while let Some(entry) = entries.next_entry().await? {
+                let path = entry.path();
+                if tokio::fs::metadata(&path).await?.is_dir() {
+                    dirs.push(path);
                 }
-                for cap in file_re.captures_iter(&content) {
-                    let file = cap[1].to_string();
-                    referenced_ogg_files.insert(music_dir.join(&file));
+            }
+        }
+
+        // Parse .asset files. `file` paths are relative to the directory
+        // holding the .asset, so flat and subdirectory layouts both resolve.
+        for dir in &dirs {
+            let mut entries = tokio::fs::read_dir(dir).await?;
+            while let Some(entry) = entries.next_entry().await? {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) == Some("asset")
+                    && tokio::fs::metadata(&path).await?.is_file()
+                {
+                    let content = tokio::fs::read_to_string(&path).await?;
+                    let base = path.parent().unwrap_or(dir).to_path_buf();
+                    for cap in name_re.captures_iter(&content) {
+                        asset_names.insert(cap[1].to_string());
+                    }
+                    for cap in file_re.captures_iter(&content) {
+                        let file = cap[1].to_string();
+                        referenced_ogg_files.insert(base.join(&file));
+                    }
                 }
             }
         }
 
         // Parse .txt files.
-        let mut entries = tokio::fs::read_dir(&music_dir).await?;
-        while let Some(entry) = entries.next_entry().await? {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("txt")
-                && tokio::fs::metadata(&path).await?.is_file()
-            {
-                let content = tokio::fs::read_to_string(&path).await?;
-                for cap in station_re.captures_iter(&content) {
-                    station_ids.insert(cap[1].to_string());
-                }
-                for cap in song_re.captures_iter(&content) {
-                    songs.insert(cap[1].to_string());
+        for dir in &dirs {
+            let mut entries = tokio::fs::read_dir(dir).await?;
+            while let Some(entry) = entries.next_entry().await? {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) == Some("txt")
+                    && tokio::fs::metadata(&path).await?.is_file()
+                {
+                    let content = tokio::fs::read_to_string(&path).await?;
+                    for cap in station_re.captures_iter(&content) {
+                        station_ids.insert(cap[1].to_string());
+                    }
+                    for cap in song_re.captures_iter(&content) {
+                        songs.insert(cap[1].to_string());
+                    }
                 }
             }
         }

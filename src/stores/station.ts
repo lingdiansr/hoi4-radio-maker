@@ -33,6 +33,7 @@ export interface StationEntry {
 export interface Station {
   id: string
   name: string
+  subdir?: string | null
   entries: StationEntry[]
 }
 
@@ -63,6 +64,18 @@ export const useStationStore = defineStore('station', () => {
       projectId: projectStore.currentProject.id,
       stationId,
       name,
+    })
+    const idx = stations.value.findIndex((s) => s.id === stationId)
+    if (idx !== -1) {
+      stations.value[idx] = updated
+    }
+    return updated
+  }
+
+  async function setStationSubdir(stationId: string, subdir: string | null) {
+    const updated = await invokeCommand<Station>('set_station_subdir', {
+      stationId,
+      subdir,
     })
     const idx = stations.value.findIndex((s) => s.id === stationId)
     if (idx !== -1) {
@@ -128,6 +141,7 @@ export const useStationStore = defineStore('station', () => {
     loadStations,
     createStation,
     renameStation,
+    setStationSubdir,
     reorderStations,
     addEntry,
     updateEntry,

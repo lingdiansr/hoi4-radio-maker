@@ -46,7 +46,13 @@
             >
               <v-card class="entry-card" variant="flat" rounded="lg">
                 <v-card-title class="d-flex justify-space-between align-center flex-wrap">
-                  <span class="text-display text-h6">{{ station.name }}</span>
+                  <span class="text-display text-h6">
+                    {{ station.name }}
+                    <span
+                      v-if="station.subdir"
+                      class="text-mono text-caption text-secondary ml-2"
+                    >music/{{ station.subdir }}/</span>
+                  </span>
                   <div class="d-flex align-center gap-2">
                     <v-btn
                       icon="mdi-pencil"
@@ -55,6 +61,14 @@
                       color="primary"
                       title="重命名"
                       @click.stop="openRename(station)"
+                    />
+                    <v-btn
+                      icon="mdi-folder-outline"
+                      variant="text"
+                      size="small"
+                      :color="station.subdir ? 'primary' : undefined"
+                      title="输出子目录"
+                      @click.stop="openSubdir(station)"
                     />
                     <v-btn
                       icon="mdi-arrow-left"
@@ -255,6 +269,51 @@
             class="action-btn"
             prepend-icon="mdi-check-circle"
             @click="doRename"
+          >
+            保存
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Output Subdirectory Dialog -->
+    <v-dialog v-model="showSubdirDialog" max-width="460" class="bureau-dialog">
+      <v-card class="dialog-card">
+        <div class="dialog-accent" />
+        <v-card-title class="dialog-title pa-6 pb-2">
+          <div class="d-flex align-center gap-3">
+            <v-icon color="primary" size="28">mdi-folder-outline</v-icon>
+            <div>
+              <div class="text-mono text-caption text-secondary">OUTPUT SUBDIRECTORY</div>
+              <div class="text-display text-h5">输出子目录</div>
+            </div>
+          </div>
+        </v-card-title>
+
+        <v-card-text class="pa-6 pt-4">
+          <v-text-field
+            v-model="subdirName"
+            label="music/ 下的子目录名"
+            placeholder="例如：radio_chi（留空则平铺）"
+            prepend-inner-icon="mdi-folder-music-outline"
+            hide-details="auto"
+            @keyup.enter="doSetSubdir"
+          />
+          <div class="text-caption text-secondary mt-2">
+            留空时该电台的 .asset / .txt / ogg 平铺在 music/ 下。
+          </div>
+        </v-card-text>
+
+        <v-divider opacity="0.2" />
+
+        <v-card-actions class="pa-6">
+          <v-spacer />
+          <v-btn variant="text" class="action-btn" @click="showSubdirDialog = false">取消</v-btn>
+          <v-btn
+            color="primary"
+            class="action-btn"
+            prepend-icon="mdi-check-circle"
+            @click="doSetSubdir"
           >
             保存
           </v-btn>
@@ -511,6 +570,9 @@ const toast = useToastStore()
 const activeTab = ref<string>('')
 const showCreateDialog = ref(false)
 const showRenameDialog = ref(false)
+const showSubdirDialog = ref(false)
+const subdirName = ref('')
+const subdirStationId = ref('')
 const showDeleteDialog = ref(false)
 const showPicker = ref(false)
 const showChanceDialog = ref(false)
@@ -604,6 +666,29 @@ async function doRename() {
   } catch (err: any) {
     if (err?.type === 'station_name_exists') {
       toast.display(`电台名称 "${name}" 已存在`, 'error', 4000)
+    } else {
+      throw err
+    }
+  }
+}
+
+function openSubdir(station: Station) {
+  subdirStationId.value = station.id
+  subdirName.value = station.subdir ?? ''
+  showSubdirDialog.value = true
+}
+
+async function doSetSubdir() {
+  if (!subdirStationId.value) return
+  const raw = subdirName.value.trim()
+  try {
+    await stationStore.setStationSubdir(subdirStationId.value, raw === '' ? null : raw)
+    showSubdirDialog.value = false
+    subdirName.value = ''
+    subdirStationId.value = ''
+  } catch (err: any) {
+    if (err?.type === 'invalid_station_subdir') {
+      toast.display('子目录名需包含 ASCII 字母或数字', 'error', 4000)
     } else {
       throw err
     }

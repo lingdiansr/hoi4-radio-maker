@@ -88,6 +88,7 @@ pub fn run() {
             commands::delete_station,
             commands::rename_station,
             commands::reorder_stations,
+            commands::set_station_subdir,
             commands::add_station_entry,
             commands::update_station_entry,
             commands::remove_station_entry,

@@ -21,14 +21,20 @@ impl<'a> StationRepository<'a> {
         let mut stmt = self
             .db
             .conn()
-            .prepare("SELECT id, name FROM stations WHERE project_id = ?1 AND name = ?2")?;
+            .prepare("SELECT id, name, subdir FROM stations WHERE project_id = ?1 AND name = ?2")?;
         let mut rows = stmt.query(params![project_id, name])?;
         match rows.next()? {
             Some(row) => {
                 let id: String = row.get("id")?;
                 let name: String = row.get("name")?;
+                let subdir: Option<String> = row.get("subdir")?;
                 let entries = self.list_entries(&id)?;
-                Ok(Some(Station { id, name, entries }))
+                Ok(Some(Station {
+                    id,
+                    name,
+                    subdir,
+                    entries,
+                }))
             }
             None => Ok(None),
         }
@@ -65,6 +71,7 @@ impl<'a> StationRepository<'a> {
         Ok(Station {
             id,
             name: name.to_string(),
+            subdir: None,
             entries: vec![],
         })
     }
@@ -74,15 +81,21 @@ impl<'a> StationRepository<'a> {
         let mut stmt = self
             .db
             .conn()
-            .prepare("SELECT id, name FROM stations WHERE id = ?1")?;
+            .prepare("SELECT id, name, subdir FROM stations WHERE id = ?1")?;
 
         let mut rows = stmt.query(params![id])?;
         match rows.next()? {
             Some(row) => {
                 let id: String = row.get("id")?;
                 let name: String = row.get("name")?;
+                let subdir: Option<String> = row.get("subdir")?;
                 let entries = self.list_entries(&id)?;
-                Ok(Some(Station { id, name, entries }))
+                Ok(Some(Station {
+                    id,
+                    name,
+                    subdir,
+                    entries,
+                }))
             }
             None => Ok(None),
         }
@@ -91,7 +104,7 @@ impl<'a> StationRepository<'a> {
     /// List all stations belonging to a project, ordered by sort_order then id.
     pub fn list_by_project(&self, project_id: &str) -> Result<Vec<Station>> {
         let mut stmt = self.db.conn().prepare(
-            "SELECT id, name FROM stations WHERE project_id = ?1 ORDER BY sort_order, id",
+            "SELECT id, name, subdir FROM stations WHERE project_id = ?1 ORDER BY sort_order, id",
         )?;
 
         let mut rows = stmt.query(params![project_id])?;
@@ -99,8 +112,14 @@ impl<'a> StationRepository<'a> {
         while let Some(row) = rows.next()? {
             let id: String = row.get("id")?;
             let name: String = row.get("name")?;
+            let subdir: Option<String> = row.get("subdir")?;
             let entries = self.list_entries(&id)?;
-            stations.push(Station { id, name, entries });
+            stations.push(Station {
+                id,
+                name,
+                subdir,
+                entries,
+            });
         }
         Ok(stations)
     }
@@ -145,6 +164,15 @@ impl<'a> StationRepository<'a> {
         self.db.conn().execute(
             "UPDATE stations SET name = ?1 WHERE id = ?2",
             params![name, id],
+        )?;
+        Ok(())
+    }
+
+    /// Set (or clear, with `None`) the station's output subdirectory.
+    pub fn set_subdir(&self, id: &str, subdir: Option<&str>) -> Result<()> {
+        self.db.conn().execute(
+            "UPDATE stations SET subdir = ?1 WHERE id = ?2",
+            params![subdir, id],
         )?;
         Ok(())
     }

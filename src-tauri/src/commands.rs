@@ -1045,6 +1045,39 @@ pub fn reorder_stations(
     StationRepository::new(&db).reorder_stations(&project_id, &station_ids)
 }
 
+/// Normalise a user-provided station output subdirectory into a safe slug.
+///
+/// `None` clears the subdirectory (flat output). A value that yields no ASCII
+/// alphanumerics is rejected, and `slugify_id` maps every path separator,
+/// dot, and non-ASCII character to `_`, so a slug can never escape `music/`.
+fn normalize_station_subdir(subdir: Option<String>) -> Result<Option<String>> {
+    match subdir {
+        Some(raw) => {
+            let slug = slugify_id(&raw);
+            if slug.is_empty() {
+                return Err(Hoi4RadioError::InvalidStationSubdir { value: raw });
+            }
+            Ok(Some(slug))
+        }
+        None => Ok(None),
+    }
+}
+
+#[tauri::command]
+pub fn set_station_subdir(
+    state: State<'_, AppState>,
+    station_id: String,
+    subdir: Option<String>,
+) -> Result<crate::models::Station> {
+    let db = lock_db(&state)?;
+    let repo = StationRepository::new(&db);
+    let normalized = normalize_station_subdir(subdir)?;
+    repo.set_subdir(&station_id, normalized.as_deref())?;
+    repo.get(&station_id)?.ok_or_else(|| Hoi4RadioError::Other {
+        message: format!("station not found: {station_id}"),
+    })
+}
+
 #[tauri::command]
 pub fn update_station_entry(
     state: State<'_, AppState>,
@@ -1238,6 +1271,34 @@ mod tests {
     fn slugify_id_returns_empty_for_pure_cjk_or_whitespace() {
         assert_eq!(slugify_id("东方红"), "");
         assert_eq!(slugify_id("  "), "");
+    }
+
+    #[test]
+    fn normalize_station_subdir_slugs_and_rejects_empty() {
+        use super::normalize_station_subdir;
+
+        // Slugs like an ID; clearing is None.
+        assert_eq!(
+            normalize_station_subdir(Some("Radio CHI".to_string())).unwrap(),
+            Some("radio_chi".to_string())
+        );
+        assert_eq!(normalize_station_subdir(None).unwrap(), None);
+
+        // Path separators and dots cannot escape music/.
+        assert_eq!(
+            normalize_station_subdir(Some("../../etc".to_string())).unwrap(),
+            Some("etc".to_string())
+        );
+        assert_eq!(
+            normalize_station_subdir(Some("a/b..c".to_string())).unwrap(),
+            Some("a_b_c".to_string())
+        );
+
+        // Names without ASCII alphanumerics are rejected rather than silently flattened.
+        assert!(matches!(
+            normalize_station_subdir(Some("电台".to_string())),
+            Err(crate::error::Hoi4RadioError::InvalidStationSubdir { .. })
+        ));
     }
 
     #[test]
