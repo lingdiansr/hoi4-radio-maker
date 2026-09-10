@@ -209,7 +209,7 @@ async fn test_validate_scans_station_subdirectories() {
     let station = Station {
         id: "radio_chi".to_string(),
         name: "Radio CHI".to_string(),
-        subdir: Some("radio_chi".to_string()),
+        subdir: None,
         entries: vec![StationEntry {
             audio_file_id: "nested_song".to_string(),
             chance: ChanceConfig {
@@ -227,6 +227,11 @@ async fn test_validate_scans_station_subdirectories() {
         &audio_store_dir,
     )
     .expect("generate_mod failed");
+
+    // The station folder comes from its name.
+    let station_dir = output_dir.join("music").join("radio_chi");
+    assert!(station_dir.join("radio_chi.asset").is_file());
+    assert!(station_dir.join("nested.ogg").is_file());
 
     // A stand-in ffprobe that always reports success, so the test proves the
     // subdirectory layout resolves rather than depending on real decoders.
@@ -248,13 +253,7 @@ async fn test_validate_scans_station_subdirectories() {
     assert_eq!(report.ogg_files_checked, 1);
 
     // A missing OGG inside the subdirectory is still detected.
-    std::fs::remove_file(
-        output_dir
-            .join("music")
-            .join("radio_chi")
-            .join("nested.ogg"),
-    )
-    .unwrap();
+    std::fs::remove_file(station_dir.join("nested.ogg")).unwrap();
     let report = validate_mod_output(&output_dir, Some(ffprobe))
         .await
         .expect("validate_mod_output failed");

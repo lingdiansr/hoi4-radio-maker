@@ -7,6 +7,7 @@ pub mod ffmpeg_finder;
 pub mod generator;
 pub mod hoi4_version;
 pub mod models;
+pub mod naming;
 pub mod settings;
 pub mod station;
 pub mod validator;

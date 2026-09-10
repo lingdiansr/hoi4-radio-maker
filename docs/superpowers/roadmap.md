@@ -192,7 +192,7 @@ Task 6.5 → Task 9 → Task 9.5 → Task 11
 | 多语言界面 | 设计文档 Nice-to-have | 🔄 待做 | |
 | 与 hoi4skill 共享 Clausewitz 索引验证 trigger | 设计文档 Nice-to-have | 🔄 待做 | |
 | 真实音频波形可视化 | 当前为占位动画 | 🔄 待做 | |
-| 子目录/多 `.asset` 结构 | 每个电台可指定 `music/<子目录>/`，`asset`/`txt`/`ogg` 同目录（Workshop 主流布局）；留空保持平铺 | ✅ 完成 | `da95f70` |
+| 子目录/多 `.asset` 结构 | 每个电台输出到各自的 `music/<子目录>/`（asset/txt/ogg 同目录，Workshop 主流布局）；目录名默认由电台名生成，可按电台自定义覆盖 | ✅ 完成 | `da95f70` |
 
 ### 9.5 推荐下一步
 

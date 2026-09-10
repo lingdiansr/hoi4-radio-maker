@@ -48,10 +48,9 @@
                 <v-card-title class="d-flex justify-space-between align-center flex-wrap">
                   <span class="text-display text-h6">
                     {{ station.name }}
-                    <span
-                      v-if="station.subdir"
-                      class="text-mono text-caption text-secondary ml-2"
-                    >music/{{ station.subdir }}/</span>
+                    <span class="text-mono text-caption text-secondary ml-2">music/{{
+                      station.subdir || slug(station.name)
+                    }}/</span>
                   </span>
                   <div class="d-flex align-center gap-2">
                     <v-btn
@@ -293,14 +292,14 @@
         <v-card-text class="pa-6 pt-4">
           <v-text-field
             v-model="subdirName"
-            label="music/ 下的子目录名"
-            placeholder="例如：radio_chi（留空则平铺）"
+            label="music/ 下的子目录名（可选）"
+            :placeholder="`留空则用「${subdirStationName}」生成`"
             prepend-inner-icon="mdi-folder-music-outline"
             hide-details="auto"
             @keyup.enter="doSetSubdir"
           />
           <div class="text-caption text-secondary mt-2">
-            留空时该电台的 .asset / .txt / ogg 平铺在 music/ 下。
+            每个电台输出到各自的 music/&lt;子目录&gt;/；留空时按电台名自动生成。
           </div>
         </v-card-text>
 
@@ -573,6 +572,7 @@ const showRenameDialog = ref(false)
 const showSubdirDialog = ref(false)
 const subdirName = ref('')
 const subdirStationId = ref('')
+const subdirStationName = ref('')
 const showDeleteDialog = ref(false)
 const showPicker = ref(false)
 const showChanceDialog = ref(false)
@@ -596,6 +596,15 @@ const triggerTypes = [
 
 function required(v: string) {
   return !!v || '此项为必填'
+}
+
+/** Mirrors the backend `slugify_id`: the folder the station will actually use. */
+function slug(name: string) {
+  const collapsed = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return collapsed || 'station'
 }
 
 onMounted(() => {
@@ -674,6 +683,7 @@ async function doRename() {
 
 function openSubdir(station: Station) {
   subdirStationId.value = station.id
+  subdirStationName.value = station.name
   subdirName.value = station.subdir ?? ''
   showSubdirDialog.value = true
 }

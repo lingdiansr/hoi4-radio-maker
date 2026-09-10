@@ -115,11 +115,10 @@ fn generates_expected_mod_files() {
         .unwrap()
         .join("test_radio.mod")
         .is_file());
-    assert!(output_dir
-        .join("music")
-        .join("test_station.asset")
-        .is_file());
-    assert!(output_dir.join("music").join("test_station.txt").is_file());
+    // Station files live under a folder derived from the station name.
+    let station_dir = output_dir.join("music").join("test_station");
+    assert!(station_dir.join("test_station.asset").is_file());
+    assert!(station_dir.join("test_station.txt").is_file());
     assert!(output_dir
         .join("localisation")
         .join("simp_chinese")
@@ -141,7 +140,7 @@ fn generates_expected_mod_files() {
     assert!(launcher.contains("path=\"test_radio\""));
 
     // Assert station asset content.
-    let asset = std::fs::read_to_string(output_dir.join("music").join("test_station.asset"))
+    let asset = std::fs::read_to_string(station_dir.join("test_station.asset"))
         .expect("failed to read asset");
     assert!(asset.contains("name = \"song_one\""));
     assert!(asset.contains("file = \"song_one.ogg\""));
@@ -149,8 +148,8 @@ fn generates_expected_mod_files() {
     assert!(asset.contains("volume = 0.8"));
 
     // Assert station txt content.
-    let txt = std::fs::read_to_string(output_dir.join("music").join("test_station.txt"))
-        .expect("failed to read txt");
+    let txt =
+        std::fs::read_to_string(station_dir.join("test_station.txt")).expect("failed to read txt");
     assert!(txt.contains("music_station = \"test_station\""));
     assert!(txt.contains("song = \"song_one\""));
     assert!(txt.contains("factor = 1"));
@@ -256,14 +255,19 @@ fn only_includes_referenced_audio_files() {
     )
     .expect("generate_mod failed");
 
-    let asset = std::fs::read_to_string(output_dir.join("music").join("only_used.asset"))
-        .expect("failed to read asset");
+    let asset = std::fs::read_to_string(
+        output_dir
+            .join("music")
+            .join("only_used")
+            .join("only_used.asset"),
+    )
+    .expect("failed to read asset");
     assert!(asset.contains("name = \"used\""));
     assert!(!asset.contains("name = \"unused\""));
 }
 
 #[test]
-fn stations_with_subdir_write_into_subdirectories() {
+fn stations_write_into_name_derived_subdirectories() {
     let temp = tempfile::tempdir().expect("failed to create temp dir");
     let output_dir = temp.path().join("mod").join("subdir_radio");
     let audio_store_dir = temp.path().join("audio_store");
@@ -300,8 +304,8 @@ fn stations_with_subdir_write_into_subdirectories() {
         updated_at: now,
     };
     let audio_files = vec![
-        make_audio("nested_song", "nested_song.ogg"),
-        make_audio("flat_song", "flat_song.ogg"),
+        make_audio("chi_song", "chi_song.ogg"),
+        make_audio("derived_song", "derived_song.ogg"),
     ];
     for audio in &audio_files {
         std::fs::write(audio_store_dir.join(&audio.ogg_filename), b"dummy ogg").unwrap();
@@ -315,22 +319,23 @@ fn stations_with_subdir_write_into_subdirectories() {
         },
     };
 
-    let nested = Station {
+    // Custom folder for the first station; name-derived folder for the second.
+    let custom = Station {
         id: "radio_chi".to_string(),
         name: "Radio CHI".to_string(),
-        subdir: Some("radio_chi".to_string()),
-        entries: vec![entry("nested_song")],
+        subdir: Some("kmt_radio".to_string()),
+        entries: vec![entry("chi_song")],
     };
-    let flat = Station {
-        id: "flat_station".to_string(),
-        name: "Flat Station".to_string(),
+    let derived = Station {
+        id: "radio_prc".to_string(),
+        name: "Radio PRC".to_string(),
         subdir: None,
-        entries: vec![entry("flat_song")],
+        entries: vec![entry("derived_song")],
     };
 
     generate_mod(
         &project,
-        &[nested, flat],
+        &[custom, derived],
         &audio_files,
         &output_dir,
         &audio_store_dir,
@@ -339,37 +344,38 @@ fn stations_with_subdir_write_into_subdirectories() {
 
     let music_dir = output_dir.join("music");
 
-    // Subdirectory station: .asset/.txt and its OGG live under music/radio_chi/.
-    let nested_dir = music_dir.join("radio_chi");
-    let nested_asset =
-        std::fs::read_to_string(nested_dir.join("radio_chi.asset")).expect("nested asset exists");
-    assert!(nested_asset.contains("name = \"nested_song\""));
-    assert!(nested_asset.contains("file = \"nested_song.ogg\""));
-    assert!(nested_dir.join("radio_chi.txt").is_file());
-    assert!(nested_dir.join("nested_song.ogg").is_file());
+    // Custom folder wins over the name.
+    let custom_dir = music_dir.join("kmt_radio");
+    let custom_asset =
+        std::fs::read_to_string(custom_dir.join("radio_chi.asset")).expect("custom asset exists");
+    assert!(custom_asset.contains("name = \"chi_song\""));
+    assert!(custom_asset.contains("file = \"chi_song.ogg\""));
+    assert!(custom_dir.join("radio_chi.txt").is_file());
+    assert!(custom_dir.join("chi_song.ogg").is_file());
 
-    // Flat station still writes to music/ root, and the project keeps every
-    // OGG there because at least one station is flat.
-    let flat_asset =
-        std::fs::read_to_string(music_dir.join("flat_station.asset")).expect("flat asset exists");
-    assert!(flat_asset.contains("name = \"flat_song\""));
-    assert!(music_dir.join("flat_song.ogg").is_file());
-    assert!(music_dir.join("nested_song.ogg").is_file());
+    // Unset folder falls back to a slug of the station name.
+    let derived_dir = music_dir.join("radio_prc");
+    let derived_asset =
+        std::fs::read_to_string(derived_dir.join("radio_prc.asset")).expect("derived asset exists");
+    assert!(derived_asset.contains("name = \"derived_song\""));
+    assert!(derived_dir.join("derived_song.ogg").is_file());
 
-    // The subdirectory station's OGG is not duplicated at the root.
+    // Nothing is written flat into music/ any more.
     assert!(!music_dir.join("radio_chi.asset").exists());
+    assert!(!music_dir.join("chi_song.ogg").exists());
+    assert!(!music_dir.join("derived_song.ogg").exists());
 }
 
 #[test]
-fn all_subdir_stations_skip_flat_ogg_copy() {
+fn colliding_station_names_get_distinct_directories() {
     let temp = tempfile::tempdir().expect("failed to create temp dir");
-    let output_dir = temp.path().join("mod").join("nested_only");
+    let output_dir = temp.path().join("mod").join("collide_radio");
     let audio_store_dir = temp.path().join("audio_store");
     std::fs::create_dir_all(&audio_store_dir).unwrap();
 
     let project = Project {
-        id: "nested_only".to_string(),
-        name: "Nested Only".to_string(),
+        id: "collide_radio".to_string(),
+        name: "Collide Radio".to_string(),
         version: "1.0.0".to_string(),
         supported_version: "1.17.*".to_string(),
         tags: vec![],
@@ -399,22 +405,31 @@ fn all_subdir_stations_skip_flat_ogg_copy() {
     };
     std::fs::write(audio_store_dir.join("alpha.ogg"), b"dummy ogg").unwrap();
 
-    let station = Station {
-        id: "only_nested".to_string(),
-        name: "Only Nested".to_string(),
-        subdir: Some("only_nested".to_string()),
-        entries: vec![StationEntry {
-            audio_file_id: "alpha".to_string(),
-            chance: ChanceConfig {
-                factor: 1.0,
-                modifiers: vec![],
-            },
-        }],
+    let entry = || StationEntry {
+        audio_file_id: "alpha".to_string(),
+        chance: ChanceConfig {
+            factor: 1.0,
+            modifiers: vec![],
+        },
+    };
+
+    // Both names slug to "front_line"; the second must get its own folder.
+    let first = Station {
+        id: "front_line".to_string(),
+        name: "Front Line".to_string(),
+        subdir: None,
+        entries: vec![entry()],
+    };
+    let second = Station {
+        id: "front_line_2".to_string(),
+        name: "Front_Line".to_string(),
+        subdir: None,
+        entries: vec![entry()],
     };
 
     generate_mod(
         &project,
-        &[station],
+        &[first, second],
         &[audio],
         &output_dir,
         &audio_store_dir,
@@ -422,7 +437,12 @@ fn all_subdir_stations_skip_flat_ogg_copy() {
     .expect("generate_mod failed");
 
     let music_dir = output_dir.join("music");
-    // No flat station: the root keeps no OGG copies.
-    assert!(!music_dir.join("alpha.ogg").exists());
-    assert!(music_dir.join("only_nested").join("alpha.ogg").is_file());
+    assert!(music_dir
+        .join("front_line")
+        .join("front_line.asset")
+        .is_file());
+    assert!(music_dir
+        .join("front_line_2")
+        .join("front_line_2.asset")
+        .is_file());
 }

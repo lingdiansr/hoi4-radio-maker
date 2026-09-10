@@ -1,20 +1,49 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 
 use crate::error::Result;
 use crate::models::{AudioFile, ChanceConfig, Project, Station, Trigger};
+use crate::naming::{slugify_id, unique_name};
+
+/// Resolve the `music/<dir>/` folder name for every station.
+///
+/// A station uses its custom `subdir` when set, otherwise a slug of its name
+/// (falling back to `station` for names with no ASCII alphanumerics). Names are
+/// de-duplicated in station order, so two stations — however named — never
+/// share a directory.
+fn resolve_station_dirs(stations: &[Station]) -> Vec<String> {
+    let mut used: HashSet<String> = HashSet::new();
+    stations
+        .iter()
+        .map(|station| {
+            let base = match station.subdir.as_deref().filter(|s| !s.is_empty()) {
+                Some(custom) => custom.to_string(),
+                None => {
+                    let slug = slugify_id(&station.name);
+                    if slug.is_empty() {
+                        "station".to_string()
+                    } else {
+                        slug
+                    }
+                }
+            };
+            unique_name(&base, &mut used)
+        })
+        .collect()
+}
 
 /// Generate a complete HOI4 radio mod on disk.
 ///
 /// `output_dir` is the mod root directory (e.g. `.../mod/my_mod`). The function
 /// clears any previous content, writes the descriptor and launcher files,
-/// generates station `.asset` / `.txt` files under `music/`, and emits the
-/// localisation YAML under `localisation/simp_chinese/`.
+/// writes each station's `.asset` / `.txt` under its own `music/<dir>/` folder,
+/// and emits the localisation YAML under `localisation/simp_chinese/`. A
+/// station's folder is its `subdir` when set, otherwise a slug of its name.
 ///
 /// `audio_store_dir` is the global directory where transcoded OGG files are
-/// stored; referenced files are copied into the project's `music/` folder.
+/// stored; each station's referenced files are copied into its own folder.
 pub fn generate_mod(
     project: &Project,
     stations: &[Station],
@@ -34,61 +63,37 @@ pub fn generate_mod(
     // 3. Write launcher .mod file next to the mod folder.
     write_launcher_mod(project, output_dir)?;
 
-    // 4. Create music/ subdirectory and copy referenced OGG files.
+    // 4. Create music/ and write each station into its own subdirectory.
     let music_dir = output_dir.join("music");
     fs::create_dir_all(&music_dir)?;
-
-    // Flat stations (or projects with no stations at all) keep every project
-    // OGG in `music/`, exactly as before. When every station has its own
-    // subdirectory, each station's OGGs are copied next to its .asset/.txt
-    // instead, matching the common Workshop layout.
-    let has_flat_station = stations
-        .iter()
-        .any(|s| s.subdir.as_deref().unwrap_or("").is_empty());
-    if has_flat_station || stations.is_empty() {
-        for audio in audio_files {
-            let src = audio_store_dir.join(&audio.ogg_filename);
-            let dst = music_dir.join(&audio.ogg_filename);
-            if src.exists() {
-                fs::copy(&src, &dst)?;
-            }
-        }
-    }
 
     // Build a lookup map for audio files.
     let audio_map: HashMap<&str, &AudioFile> =
         audio_files.iter().map(|a| (a.id.as_str(), a)).collect();
 
-    // 5. Generate per-station files.
-    for station in stations {
-        let subdir = station.subdir.as_deref().filter(|s| !s.is_empty());
-        let dir = match subdir {
-            Some(sub) => {
-                let d = music_dir.join(sub);
-                fs::create_dir_all(&d)?;
-                d
-            }
-            None => music_dir.clone(),
-        };
+    // 5. Generate per-station files. Every station gets `music/<dir>/` holding
+    // its .asset, .txt, and referenced OGGs (the common Workshop layout).
+    let dir_names = resolve_station_dirs(stations);
+    for (station, dir_name) in stations.iter().zip(dir_names) {
+        let dir = music_dir.join(&dir_name);
+        fs::create_dir_all(&dir)?;
 
         write_station_asset(station, &dir, &audio_map)?;
         write_station_txt(station, &dir, &audio_map)?;
 
-        if subdir.is_some() {
-            // Copy only this station's referenced OGGs next to its own
-            // .asset/.txt, so `file = "song.ogg"` resolves in that directory.
-            for entry in &station.entries {
-                let Some(audio) = audio_map.get(entry.audio_file_id.as_str()) else {
-                    continue;
-                };
-                let dst = dir.join(&audio.ogg_filename);
-                if dst.exists() {
-                    continue;
-                }
-                let src = audio_store_dir.join(&audio.ogg_filename);
-                if src.exists() {
-                    fs::copy(&src, &dst)?;
-                }
+        // Copy this station's referenced OGGs next to its .asset/.txt, so
+        // `file = "song.ogg"` resolves inside that directory.
+        for entry in &station.entries {
+            let Some(audio) = audio_map.get(entry.audio_file_id.as_str()) else {
+                continue;
+            };
+            let dst = dir.join(&audio.ogg_filename);
+            if dst.exists() {
+                continue;
+            }
+            let src = audio_store_dir.join(&audio.ogg_filename);
+            if src.exists() {
+                fs::copy(&src, &dst)?;
             }
         }
     }

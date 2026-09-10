@@ -7,6 +7,7 @@ use crate::models::{
     AudioFile, BatchImportFailedFile, BatchUpdateAudioFileRequest, ChanceConfig,
     CreateProjectRequest, ImportStatus, Project, UpdateAudioFileRequest, UpdateProjectRequest,
 };
+use crate::naming::slugify_id;
 use crate::settings::{Settings, SettingsResponse};
 use crate::station::StationRepository;
 use crate::validator::validate_mod_output;
@@ -170,27 +171,6 @@ fn sanitize_folder_name(name: &str) -> String {
             "_",
         )
         .replace(' ', "_")
-}
-
-/// Convert a human-readable name into a HOI4-safe ASCII slug: lowercase
-/// alphanumerics and underscores only. Returns empty string when the input
-/// has no ASCII alphanumeric characters (e.g. pure CJK).
-pub(crate) fn slugify_id(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        if c.is_ascii_alphanumeric() {
-            out.push(c.to_ascii_lowercase());
-        } else {
-            out.push('_');
-        }
-    }
-    // collapse consecutive underscores and trim edges
-    let collapsed = out
-        .split('_')
-        .filter(|p| !p.is_empty())
-        .collect::<Vec<_>>()
-        .join("_");
-    collapsed
 }
 
 /// Write the HOI4 `.mod` descriptor next to the output directory.
@@ -1047,9 +1027,10 @@ pub fn reorder_stations(
 
 /// Normalise a user-provided station output subdirectory into a safe slug.
 ///
-/// `None` clears the subdirectory (flat output). A value that yields no ASCII
-/// alphanumerics is rejected, and `slugify_id` maps every path separator,
-/// dot, and non-ASCII character to `_`, so a slug can never escape `music/`.
+/// `None` clears the override, so the station falls back to a directory slugged
+/// from its name at generation time. A value that yields no ASCII alphanumerics
+/// is rejected, and `slugify_id` maps every path separator, dot, and non-ASCII
+/// character to `_`, so a slug can never escape `music/`.
 fn normalize_station_subdir(subdir: Option<String>) -> Result<Option<String>> {
     match subdir {
         Some(raw) => {
@@ -1232,7 +1213,7 @@ pub fn get_default_library_dir(state: State<'_, AppState>) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{sanitize_folder_name, slugify_id, transcode_concurrency};
+    use super::{sanitize_folder_name, transcode_concurrency};
 
     #[test]
     fn transcode_concurrency_is_half_of_import_min_one() {
@@ -1258,19 +1239,6 @@ mod tests {
     fn sanitize_replaces_dots() {
         assert_eq!(sanitize_folder_name("My.Mod.v2"), "My_Mod_v2");
         assert_eq!(sanitize_folder_name("..."), "___");
-    }
-
-    #[test]
-    fn slugify_id_lowercases_and_underscores() {
-        assert_eq!(slugify_id("My Song Title"), "my_song_title");
-        assert_eq!(slugify_id("Song - 01 (Remix)"), "song_01_remix");
-        assert_eq!(slugify_id("Already_slug"), "already_slug");
-    }
-
-    #[test]
-    fn slugify_id_returns_empty_for_pure_cjk_or_whitespace() {
-        assert_eq!(slugify_id("东方红"), "");
-        assert_eq!(slugify_id("  "), "");
     }
 
     #[test]

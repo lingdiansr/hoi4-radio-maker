@@ -1,7 +1,7 @@
-use crate::commands::slugify_id;
 use crate::db::Db;
 use crate::error::Result;
 use crate::models::{ChanceConfig, Station, StationEntry};
+use crate::naming::slugify_id;
 use rusqlite::params;
 use rusqlite::OptionalExtension;
 
