@@ -186,19 +186,19 @@ Task 6.5 → Task 9 → Task 9.5 → Task 11
 
 ### 9.4 低优先级 / 可选
 
-| 任务 | 说明 |
-|---|---|
-| Steam Workshop 一键上传 | 设计文档 Nice-to-have |
-| 多语言界面 | 设计文档 Nice-to-have |
-| 与 hoi4skill 共享 Clausewitz 索引验证 trigger | 设计文档 Nice-to-have |
-| 真实音频波形可视化 | 当前为占位动画 |
-| 子目录/多 `.asset` 结构 | 大型 Mod 可选组织方式，参考 Workshop 中 `pla/`、`radiochi/` 等子目录电台 |
+| 任务 | 说明 | 状态 | 提交 |
+|---|---|---|---|
+| Steam Workshop 一键上传 | 设计文档 Nice-to-have | 🔄 待做 | |
+| 多语言界面 | 设计文档 Nice-to-have | 🔄 待做 | |
+| 与 hoi4skill 共享 Clausewitz 索引验证 trigger | 设计文档 Nice-to-have | 🔄 待做 | |
+| 真实音频波形可视化 | 当前为占位动画 | 🔄 待做 | |
+| 子目录/多 `.asset` 结构 | 每个电台可指定 `music/<子目录>/`，`asset`/`txt`/`ogg` 同目录（Workshop 主流布局）；留空保持平铺 | ✅ 完成 | `da95f70` |
 
 ### 9.5 推荐下一步
 
-9.3 剩余中优先级体验项已全部完成并合并至 main（`32e6a24`）：可读电台/歌曲 ID、导入完成后再建立项目引用、拖拽导入。`cargo test` 29 项单元测试与 9 个集成测试目标全部通过，`cargo clippy -- -D warnings` 与 `bun run build`（vue-tsc）均通过。
+9.3 中优先级体验项已全部完成并合并至 main（`32e6a24`），9.4 的「子目录/多 `.asset` 结构」也已完成（`da95f70`）：电台级 `subdir` 字段 + 生成器按目录输出 + 验证器递归扫描 + `stations.subdir` 迁移（v2→v3）。`cargo test` 30 项单元测试与 8 个集成测试目标全部通过，`cargo clippy --all-targets -- -D warnings` 与 `bun run build`（vue-tsc）均通过。
 
-下一步建议进入 9.4 低优先级/可选：优先「Steam Workshop 一键上传」或「子目录/多 `.asset` 结构」（对齐 Workshop 主流电台组织方式）。
+下一步建议进入 9.4 剩余项：优先「Steam Workshop 一键上传」，其次「多语言界面」。
 
 ### 9.6 CI/CD — ✅ 已完成
 
