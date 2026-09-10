@@ -14,6 +14,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useAudioStore, type BatchImportResult } from '@/stores/audio'
 import { invokeCommand } from '@/api/client'
@@ -31,9 +32,10 @@ const emit = defineEmits<{
 }>()
 
 const audioStore = useAudioStore()
+const { t } = useI18n()
 
 const buttonLabel = computed(() => {
-  return props.mode === 'global' ? '导入到音频库' : '导入音频'
+  return props.mode === 'global' ? t('audio.importToLibrary') : t('audio.importAudio')
 })
 
 async function selectFiles() {

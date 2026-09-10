@@ -4,7 +4,7 @@
       <v-card-title class="d-flex justify-space-between align-center pa-6">
         <div>
           <div class="text-mono text-caption text-secondary mb-1">BROADCAST CHANNELS</div>
-          <div class="text-display text-h5">电台编辑</div>
+          <div class="text-display text-h5">{{ $t('station.title') }}</div>
         </div>
         <v-btn
           color="primary"
@@ -12,7 +12,7 @@
           class="create-btn"
           @click="openCreateDialog"
         >
-          新建电台
+          {{ $t('station.newStation') }}
         </v-btn>
       </v-card-title>
 
@@ -21,9 +21,9 @@
       <v-card-text class="pa-6">
         <div v-if="stationStore.stations.length === 0" class="empty-state text-center py-12">
           <v-icon size="64" color="secondary" class="mb-4">mdi-antenna</v-icon>
-          <div class="text-body text-secondary text-h6 mb-2">暂无电台</div>
-          <div class="text-body text-secondary mb-4">创建一个电台，然后从音频库添加歌曲</div>
-          <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateDialog">新建电台</v-btn>
+          <div class="text-body text-secondary text-h6 mb-2">{{ $t('station.emptyTitle') }}</div>
+          <div class="text-body text-secondary mb-4">{{ $t('station.emptyBody') }}</div>
+          <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateDialog">{{ $t('station.newStation') }}</v-btn>
         </div>
 
         <template v-else>
@@ -58,7 +58,7 @@
                       variant="text"
                       size="small"
                       color="primary"
-                      title="重命名"
+                      :title="$t('station.rename')"
                       @click.stop="openRename(station)"
                     />
                     <v-btn
@@ -66,7 +66,7 @@
                       variant="text"
                       size="small"
                       :color="station.subdir ? 'primary' : undefined"
-                      title="输出子目录"
+                      :title="$t('station.outputSubdir')"
                       @click.stop="openSubdir(station)"
                     />
                     <v-btn
@@ -74,7 +74,7 @@
                       variant="text"
                       size="small"
                       :disabled="isFirst(station.id)"
-                      title="前移"
+                      :title="$t('station.moveUp')"
                       @click.stop="moveStation(station.id, -1)"
                     />
                     <v-btn
@@ -82,7 +82,7 @@
                       variant="text"
                       size="small"
                       :disabled="isLast(station.id)"
-                      title="后移"
+                      :title="$t('station.moveDown')"
                       @click.stop="moveStation(station.id, 1)"
                     />
                     <v-chip size="small" color="primary" class="text-mono">
@@ -93,7 +93,7 @@
                       variant="text"
                       size="small"
                       color="error"
-                      title="删除电台"
+                      :title="$t('station.deleteLabel')"
                       @click="confirmDelete(station)"
                     />
                   </div>
@@ -147,7 +147,7 @@
                           color="secondary"
                           class="ml-3"
                         >
-                          {{ entry.chance.modifiers.length }} 个条件
+                          {{ $t('station.modifierCount', { count: entry.chance.modifiers.length }) }}
                         </v-chip>
                       </v-list-item-subtitle>
                       <template #append>
@@ -156,7 +156,7 @@
                           variant="text"
                           color="primary"
                           class="mr-1"
-                          title="编辑播放条件"
+                          :title="$t('station.editChance')"
                           @click.stop="openChanceEditor(station.id, entry)"
                         />
                         <v-btn
@@ -168,7 +168,7 @@
                       </template>
                     </v-list-item>
                   </v-list>
-                  <v-alert v-else color="secondary" variant="tonal" icon="mdi-information" text="该电台暂无歌曲，点击下方按钮从音频库添加" />
+                  <v-alert v-else color="secondary" variant="tonal" icon="mdi-information" :text="$t('station.noSongs')" />
 
                   <v-divider class="my-4" opacity="0.2" />
 
@@ -179,7 +179,7 @@
                     class="action-btn"
                     @click="openPicker(station.id)"
                   >
-                    从音频库添加歌曲
+                    {{ $t('station.addSongs') }}
                   </v-btn>
                 </v-card-text>
               </v-card>
@@ -198,7 +198,7 @@
             <v-icon color="primary" size="28">mdi-radio</v-icon>
             <div>
               <div class="text-mono text-caption text-secondary">NEW CHANNEL</div>
-              <div class="text-display text-h5">新建电台</div>
+              <div class="text-display text-h5">{{ $t('station.createTitle') }}</div>
             </div>
           </div>
         </v-card-title>
@@ -206,8 +206,8 @@
         <v-card-text class="pa-6 pt-4">
           <v-text-field
             v-model="newStationName"
-            label="电台名称"
-            placeholder="例如：前线战报"
+            :label="$t('station.nameLabel')"
+            :placeholder="$t('station.namePlaceholder')"
             prepend-inner-icon="mdi-antenna"
             hide-details="auto"
             :rules="[required]"
@@ -219,14 +219,14 @@
 
         <v-card-actions class="pa-6">
           <v-spacer />
-          <v-btn variant="text" class="action-btn" @click="showCreateDialog = false">取消</v-btn>
+          <v-btn variant="text" class="action-btn" @click="showCreateDialog = false">{{ $t('common.cancel') }}</v-btn>
           <v-btn
             color="primary"
             class="action-btn"
             prepend-icon="mdi-check-circle"
             @click="createStation"
           >
-            创建
+            {{ $t('common.create') }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -241,7 +241,7 @@
             <v-icon color="primary" size="28">mdi-pencil</v-icon>
             <div>
               <div class="text-mono text-caption text-secondary">RENAME CHANNEL</div>
-              <div class="text-display text-h5">重命名电台</div>
+              <div class="text-display text-h5">{{ $t('station.renameTitle') }}</div>
             </div>
           </div>
         </v-card-title>
@@ -249,8 +249,8 @@
         <v-card-text class="pa-6 pt-4">
           <v-text-field
             v-model="renameName"
-            label="电台名称"
-            placeholder="例如：前线战报"
+            :label="$t('station.nameLabel')"
+            :placeholder="$t('station.namePlaceholder')"
             prepend-inner-icon="mdi-antenna"
             hide-details="auto"
             :rules="[required]"
@@ -262,14 +262,14 @@
 
         <v-card-actions class="pa-6">
           <v-spacer />
-          <v-btn variant="text" class="action-btn" @click="showRenameDialog = false">取消</v-btn>
+          <v-btn variant="text" class="action-btn" @click="showRenameDialog = false">{{ $t('common.cancel') }}</v-btn>
           <v-btn
             color="primary"
             class="action-btn"
             prepend-icon="mdi-check-circle"
             @click="doRename"
           >
-            保存
+            {{ $t('common.save') }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -284,7 +284,7 @@
             <v-icon color="primary" size="28">mdi-folder-outline</v-icon>
             <div>
               <div class="text-mono text-caption text-secondary">OUTPUT SUBDIRECTORY</div>
-              <div class="text-display text-h5">输出子目录</div>
+              <div class="text-display text-h5">{{ $t('station.subdirTitle') }}</div>
             </div>
           </div>
         </v-card-title>
@@ -292,14 +292,14 @@
         <v-card-text class="pa-6 pt-4">
           <v-text-field
             v-model="subdirName"
-            label="music/ 下的子目录名（可选）"
-            :placeholder="`留空则用「${subdirStationName}」生成`"
+            :label="$t('station.subdirLabel')"
+            :placeholder="$t('station.subdirPlaceholder', { name: subdirStationName })"
             prepend-inner-icon="mdi-folder-music-outline"
             hide-details="auto"
             @keyup.enter="doSetSubdir"
           />
           <div class="text-caption text-secondary mt-2">
-            每个电台输出到各自的 music/&lt;子目录&gt;/；留空时按电台名自动生成。
+            {{ $t('station.subdirHint') }}
           </div>
         </v-card-text>
 
@@ -307,14 +307,14 @@
 
         <v-card-actions class="pa-6">
           <v-spacer />
-          <v-btn variant="text" class="action-btn" @click="showSubdirDialog = false">取消</v-btn>
+          <v-btn variant="text" class="action-btn" @click="showSubdirDialog = false">{{ $t('common.cancel') }}</v-btn>
           <v-btn
             color="primary"
             class="action-btn"
             prepend-icon="mdi-check-circle"
             @click="doSetSubdir"
           >
-            保存
+            {{ $t('common.save') }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -329,7 +329,7 @@
             <v-icon color="primary" size="28">mdi-tune</v-icon>
             <div>
               <div class="text-mono text-caption text-secondary">PLAYBACK CONDITIONS</div>
-              <div class="text-display text-h5">编辑播放条件</div>
+              <div class="text-display text-h5">{{ $t('station.chanceTitle') }}</div>
             </div>
           </div>
         </v-card-title>
@@ -341,7 +341,7 @@
               type="number"
               min="0"
               step="0.1"
-              label="基础权重 factor"
+              :label="$t('station.baseFactor')"
               variant="outlined"
               density="comfortable"
               hide-details="auto"
@@ -349,7 +349,7 @@
             />
 
             <div class="d-flex justify-space-between align-center mb-3">
-              <div class="text-body font-weight-medium">修饰器（modifier）</div>
+              <div class="text-body font-weight-medium">{{ $t('station.modifiersTitle') }}</div>
               <v-btn
                 color="primary"
                 variant="text"
@@ -357,12 +357,12 @@
                 prepend-icon="mdi-plus"
                 @click="addModifier"
               >
-                添加修饰器
+                {{ $t('station.addModifier') }}
               </v-btn>
             </div>
 
             <div v-if="chanceEditorData.modifiers.length === 0" class="text-body text-secondary text-center py-4">
-              暂无修饰器，歌曲将只使用基础权重
+              {{ $t('station.noModifiers') }}
             </div>
 
             <v-card
@@ -417,7 +417,7 @@
                 </div>
 
                 <div class="d-flex justify-space-between align-center mb-2">
-                  <div class="text-body text-caption">触发条件</div>
+                  <div class="text-body text-caption">{{ $t('station.triggers') }}</div>
                   <v-btn
                     color="primary"
                     variant="text"
@@ -425,7 +425,7 @@
                     prepend-icon="mdi-plus"
                     @click="addTrigger(modifier)"
                   >
-                    添加条件
+                    {{ $t('station.addTrigger') }}
                   </v-btn>
                 </div>
 
@@ -439,7 +439,7 @@
                     :items="triggerTypes"
                     item-title="label"
                     item-value="value"
-                    label="条件类型"
+                    :label="$t('station.triggerType')"
                     variant="outlined"
                     density="compact"
                     hide-details
@@ -448,7 +448,7 @@
                   <v-text-field
                     v-if="trigger.type === 'tag'"
                     v-model="trigger.value"
-                    label="国家标签"
+                    :label="$t('station.countryTag')"
                     placeholder="CHI"
                     variant="outlined"
                     density="compact"
@@ -457,10 +457,10 @@
                   <v-select
                     v-else-if="trigger.type === 'has_war'"
                     v-model="trigger.value"
-                    :items="[{ label: '是', value: true }, { label: '否', value: false }]"
+                    :items="[{ label: $t('station.yes'), value: true }, { label: $t('station.no'), value: false }]"
                     item-title="label"
                     item-value="value"
-                    label="处于战争"
+                    :label="$t('station.atWar')"
                     variant="outlined"
                     density="compact"
                     hide-details
@@ -468,7 +468,7 @@
                   <v-text-field
                     v-else-if="trigger.type === 'has_government'"
                     v-model="trigger.ideology"
-                    label="意识形态"
+                    :label="$t('station.ideology')"
                     placeholder="democratic"
                     variant="outlined"
                     density="compact"
@@ -477,7 +477,7 @@
                   <v-text-field
                     v-else-if="trigger.type === 'is_in_faction'"
                     v-model="trigger.tag"
-                    label="阵营国家"
+                    :label="$t('station.factionCountry')"
                     placeholder="USA"
                     variant="outlined"
                     density="compact"
@@ -500,14 +500,14 @@
 
         <v-card-actions class="pa-6">
           <v-spacer />
-          <v-btn variant="text" class="action-btn" @click="showChanceDialog = false">取消</v-btn>
+          <v-btn variant="text" class="action-btn" @click="showChanceDialog = false">{{ $t('common.cancel') }}</v-btn>
           <v-btn
             color="primary"
             class="action-btn"
             prepend-icon="mdi-check-circle"
             @click="saveChance"
           >
-            保存
+            {{ $t('common.save') }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -528,24 +528,28 @@
             <v-icon color="error" size="28">mdi-alert-circle</v-icon>
             <div>
               <div class="text-mono text-caption text-secondary">CONFIRM DELETION</div>
-              <div class="text-display text-h5">删除电台</div>
+              <div class="text-display text-h5">{{ $t('station.deleteTitle') }}</div>
             </div>
           </div>
         </v-card-title>
 
         <v-card-text class="pa-6 pt-4 text-body-1">
-          确定要删除电台 <strong class="text-primary">{{ stationToDelete?.name }}</strong> 吗？
+          <i18n-t keypath="station.deleteConfirm" tag="span">
+            <template #name>
+              <strong class="text-primary">{{ stationToDelete?.name }}</strong>
+            </template>
+          </i18n-t>
           <br><br>
-          电台内的所有歌曲条目也将被删除，但音频文件仍会保留在全局音频库中。
+          {{ $t('station.deleteBody') }}
         </v-card-text>
 
         <v-divider opacity="0.2" />
 
         <v-card-actions class="pa-6">
           <v-spacer />
-          <v-btn variant="text" class="action-btn" @click="showDeleteDialog = false">取消</v-btn>
+          <v-btn variant="text" class="action-btn" @click="showDeleteDialog = false">{{ $t('common.cancel') }}</v-btn>
           <v-btn color="error" class="action-btn" prepend-icon="mdi-delete-outline" @click="handleDelete">
-            删除
+            {{ $t('common.delete') }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -555,14 +559,17 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useStationStore, type Station, type StationEntry, type ChanceConfig, type Modifier, type Trigger, type TriggerType } from '@/stores/station'
 import { useAudioStore } from '@/stores/audio'
+import { errorMessage } from '@/utils/errors'
 import { logger } from '@/utils/logger'
 import { useToastStore } from '@/stores/toast'
 import AudioPickerDialog from '@/components/AudioPickerDialog.vue'
 
 const route = useRoute()
+const { t } = useI18n()
 const stationStore = useStationStore()
 const audioStore = useAudioStore()
 const toast = useToastStore()
@@ -587,15 +594,15 @@ const chanceEditorData = ref<ChanceConfig | null>(null)
 
 const projectId = computed(() => route.params.id as string)
 
-const triggerTypes = [
-  { label: '战争状态', value: 'has_war' as TriggerType },
-  { label: '国家标签', value: 'tag' as TriggerType },
-  { label: '意识形态', value: 'has_government' as TriggerType },
-  { label: '同阵营国家', value: 'is_in_faction' as TriggerType },
-]
+const triggerTypes = computed(() => [
+  { label: t('station.triggerWar'), value: 'has_war' as TriggerType },
+  { label: t('station.triggerTag'), value: 'tag' as TriggerType },
+  { label: t('station.triggerIdeology'), value: 'has_government' as TriggerType },
+  { label: t('station.triggerFaction'), value: 'is_in_faction' as TriggerType },
+])
 
 function required(v: string) {
-  return !!v || '此项为必填'
+  return !!v || t('common.required')
 }
 
 /** Mirrors the backend `slugify_id`: the folder the station will actually use. */
@@ -649,12 +656,8 @@ async function createStation() {
     await stationStore.createStation(name)
     showCreateDialog.value = false
     newStationName.value = ''
-  } catch (err: any) {
-    if (err?.type === 'station_name_exists') {
-      toast.display(`电台名称 "${name}" 已存在`, 'error', 4000)
-    } else {
-      throw err
-    }
+  } catch (err) {
+    toast.display(errorMessage(err), 'error', 4000)
   }
 }
 
@@ -672,12 +675,8 @@ async function doRename() {
     showRenameDialog.value = false
     renameName.value = ''
     renameStationId.value = ''
-  } catch (err: any) {
-    if (err?.type === 'station_name_exists') {
-      toast.display(`电台名称 "${name}" 已存在`, 'error', 4000)
-    } else {
-      throw err
-    }
+  } catch (err) {
+    toast.display(errorMessage(err), 'error', 4000)
   }
 }
 
@@ -696,12 +695,8 @@ async function doSetSubdir() {
     showSubdirDialog.value = false
     subdirName.value = ''
     subdirStationId.value = ''
-  } catch (err: any) {
-    if (err?.type === 'invalid_station_subdir') {
-      toast.display('子目录名需包含 ASCII 字母或数字', 'error', 4000)
-    } else {
-      throw err
-    }
+  } catch (err) {
+    toast.display(errorMessage(err), 'error', 4000)
   }
 }
 

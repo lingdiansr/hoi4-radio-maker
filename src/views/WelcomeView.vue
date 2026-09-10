@@ -6,9 +6,9 @@
       </div>
       <h1 class="text-display hero-title mb-4">HOI4 Radio Maker</h1>
       <p class="text-body hero-subtitle mb-8">
-        为你的钢铁雄心 IV 战役谱写声音。
+        {{ $t('welcome.tagline') }}
         <br />
-        创建项目、导入音频、编辑电台、一键生成 Mod。
+        {{ $t('welcome.subtitle') }}
       </p>
       <v-btn
         color="primary"
@@ -17,7 +17,7 @@
         class="hero-cta"
         @click="emitCreate"
       >
-        新建广播项目
+        {{ $t('welcome.createProject') }}
       </v-btn>
     </div>
   </div>

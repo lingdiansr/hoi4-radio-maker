@@ -9,9 +9,14 @@
       <v-card-title class="d-flex justify-space-between align-start pa-6">
         <div>
           <div class="text-mono text-caption text-secondary mb-1">GLOBAL ARCHIVE</div>
-          <div class="text-display text-h4 archive-title">音频库</div>
+          <div class="text-display text-h4 archive-title">{{ $t('audio.archiveTitle') }}</div>
           <div class="text-body text-secondary mt-2">
-            共 {{ audioStore.allAudioFiles.length }} 条音频 · 已选择 {{ selectedIds.length }} 条
+            {{
+              $t('audio.summary', {
+                total: audioStore.allAudioFiles.length,
+                selected: selectedIds.length,
+              })
+            }}
           </div>
         </div>
         <div class="d-flex align-center gap-3">
@@ -29,11 +34,13 @@
       <div v-if="audioStore.importing" class="import-progress pa-4 pb-0" aria-live="polite">
         <div class="d-flex align-center text-caption text-secondary mb-1">
           <v-icon size="16" class="mr-2">mdi-download-multiple</v-icon>
-          正在导入
-          <span class="mx-1 text-primary">
-            {{ audioStore.importCompleted }}/{{ audioStore.importTotal }}
-          </span>
-          首…
+          <i18n-t keypath="audio.importingProgress" tag="span">
+            <template #progress>
+              <span class="mx-1 text-primary">
+                {{ audioStore.importCompleted }}/{{ audioStore.importTotal }}
+              </span>
+            </template>
+          </i18n-t>
         </div>
         <v-progress-linear
           :indeterminate="audioStore.importCompleted === 0"
@@ -49,8 +56,8 @@
           <v-col cols="12" md="5">
             <v-text-field
               v-model="search"
-              label="搜索音频"
-              placeholder="标题、艺术家、哈希…"
+              :label="$t('audio.searchLabel')"
+              :placeholder="$t('audio.searchPlaceholder')"
               prepend-inner-icon="mdi-magnify"
               variant="outlined"
               density="comfortable"
@@ -82,7 +89,7 @@
                 prepend-icon="mdi-select-all"
                 @click="selectAll"
               >
-                全选
+                {{ $t('common.selectAll') }}
               </v-btn>
               <v-btn
                 variant="text"
@@ -90,7 +97,7 @@
                 prepend-icon="mdi-select-inverse"
                 @click="invertSelection"
               >
-                反选
+                {{ $t('common.invertSelection') }}
               </v-btn>
               <v-btn
                 v-if="selectedIds.length"
@@ -99,7 +106,7 @@
                 prepend-icon="mdi-select-remove"
                 @click="selectedIds = []"
               >
-                清除选择
+                {{ $t('common.clearSelection') }}
               </v-btn>
             </div>
             <v-divider v-if="selectedIds.length" vertical class="mx-2" />
@@ -112,7 +119,7 @@
                 prepend-icon="mdi-pencil-box-multiple"
                 @click="showBatchEdit = true"
               >
-                批量编辑 ({{ selectedIds.length }})
+                {{ $t('audio.batchEdit', { count: selectedIds.length }) }}
               </v-btn>
               <v-btn
                 color="error"
@@ -121,7 +128,7 @@
                 prepend-icon="mdi-delete-sweep"
                 @click="confirmBatchDelete"
               >
-                删除选中 ({{ selectedIds.length }})
+                {{ $t('audio.deleteSelected', { count: selectedIds.length }) }}
               </v-btn>
             </div>
           </v-col>
@@ -133,9 +140,9 @@
           <!-- Empty state -->
           <div v-if="filteredAudio.length === 0" class="empty-state text-center py-16">
             <v-icon size="80" color="secondary" class="mb-6">mdi-archive-music-outline</v-icon>
-            <div class="text-display text-h5 mb-2">音频库为空</div>
+            <div class="text-display text-h5 mb-2">{{ $t('audio.emptyTitle') }}</div>
             <div class="text-body text-secondary mb-6">
-              这里是全局音频仓库。导入音频后，可在任意项目中引用。
+              {{ $t('audio.emptyBody') }}
             </div>
             <AudioImporter mode="global" @imported="onImported" />
           </div>
@@ -228,13 +235,13 @@
                     {{ audio.title }}
                   </div>
                   <div class="text-mono text-caption text-secondary mb-3">
-                    <span>{{ audio.artist || '未知艺术家' }}</span>
+                    <span>{{ audio.artist || $t('common.unknownArtist') }}</span>
                     <span v-if="audio.import_status === 'ready'">
                       · {{ formatDuration(audio.duration_secs) }}
                     </span>
-                    <span v-else-if="audio.import_status === 'pending'"> · 等待处理…</span>
-                    <span v-else-if="audio.import_status === 'processing'"> · 正在导入…</span>
-                    <span v-else-if="audio.import_status === 'error'"> · 导入失败</span>
+                    <span v-else-if="audio.import_status === 'pending'"> · {{ $t('audio.statusPending') }}</span>
+                    <span v-else-if="audio.import_status === 'processing'"> · {{ $t('audio.statusProcessing') }}</span>
+                    <span v-else-if="audio.import_status === 'error'"> · {{ $t('audio.statusError') }}</span>
                   </div>
                   <div class="d-flex justify-space-between align-center text-mono text-caption text-secondary">
                     <span v-if="audio.import_status === 'ready'">
@@ -302,14 +309,14 @@
                 </v-chip>
               </v-list-item-title>
               <v-list-item-subtitle>
-                <span>{{ audio.artist || '未知艺术家' }}</span>
+                <span>{{ audio.artist || $t('common.unknownArtist') }}</span>
                 <span v-if="audio.import_status === 'ready'">
                   · {{ formatDuration(audio.duration_secs) }}
                   · {{ audio.sample_rate }} Hz · {{ audio.channels }} ch
                 </span>
-                <span v-else-if="audio.import_status === 'pending'"> · 等待处理…</span>
-                <span v-else-if="audio.import_status === 'processing'"> · 正在导入…</span>
-                <span v-else-if="audio.import_status === 'error'"> · 导入失败</span>
+                <span v-else-if="audio.import_status === 'pending'"> · {{ $t('audio.statusPending') }}</span>
+                <span v-else-if="audio.import_status === 'processing'"> · {{ $t('audio.statusProcessing') }}</span>
+                <span v-else-if="audio.import_status === 'error'"> · {{ $t('audio.statusError') }}</span>
               </v-list-item-subtitle>
               <template #append>
                 <v-btn
@@ -358,26 +365,30 @@
             <v-icon color="error" size="28">mdi-alert-circle</v-icon>
             <div>
               <div class="text-mono text-caption text-secondary">BATCH DELETION</div>
-              <div class="text-display text-h5">批量删除音频</div>
+              <div class="text-display text-h5">{{ $t('audio.deleteBatchTitle') }}</div>
             </div>
           </div>
         </v-card-title>
 
         <v-card-text class="pa-6 pt-4 text-body-1">
-          确定要从全局音频库中删除选中的 <strong class="text-primary">{{ selectedIds.length }}</strong> 条音频吗？
+          <i18n-t keypath="audio.deleteBatchConfirm" tag="span">
+            <template #count>
+              <strong class="text-primary">{{ selectedIds.length }}</strong>
+            </template>
+          </i18n-t>
           <br><br>
-          <span class="text-secondary">处理中的音频将被取消导入并删除。</span>
+          <span class="text-secondary">{{ $t('audio.processingWillCancel') }}</span>
           <br>
-          <span class="text-error">警告：</span>已被项目引用的就绪音频无法删除。
+          <span class="text-error">{{ $t('common.warning') }}</span>{{ $t('audio.warnReferenced') }}
         </v-card-text>
 
         <v-divider opacity="0.2" />
 
         <v-card-actions class="pa-6">
           <v-spacer />
-          <v-btn variant="text" class="action-btn" @click="showBatchDeleteDialog = false">取消</v-btn>
+          <v-btn variant="text" class="action-btn" @click="showBatchDeleteDialog = false">{{ $t('common.cancel') }}</v-btn>
           <v-btn color="error" class="action-btn" prepend-icon="mdi-delete-outline" :loading="batchDeleting" @click="handleBatchDelete">
-            删除
+            {{ $t('common.delete') }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -392,26 +403,30 @@
             <v-icon color="error" size="28">mdi-alert-circle</v-icon>
             <div>
               <div class="text-mono text-caption text-secondary">CONFIRM DELETION</div>
-              <div class="text-display text-h5">删除音频</div>
+              <div class="text-display text-h5">{{ $t('audio.deleteTitle') }}</div>
             </div>
           </div>
         </v-card-title>
 
         <v-card-text class="pa-6 pt-4 text-body-1">
-          确定要从全局音频库中删除 <strong class="text-primary">{{ audioToDelete?.title }}</strong> 吗？
+          <i18n-t keypath="audio.deleteConfirm" tag="span">
+            <template #name>
+              <strong class="text-primary">{{ audioToDelete?.title }}</strong>
+            </template>
+          </i18n-t>
           <br><br>
-          <span v-if="audioToDelete?.import_status === 'processing'" class="text-secondary">该音频正在导入，删除后将取消导入。</span>
+          <span v-if="audioToDelete?.import_status === 'processing'" class="text-secondary">{{ $t('audio.deletingProcessing') }}</span>
           <br>
-          <span class="text-error">警告：</span>如果该音频仍被任何项目引用，将无法删除。
+          <span class="text-error">{{ $t('common.warning') }}</span>{{ $t('audio.warnReferencedSingle') }}
         </v-card-text>
 
         <v-divider opacity="0.2" />
 
         <v-card-actions class="pa-6">
           <v-spacer />
-          <v-btn variant="text" class="action-btn" @click="showDeleteDialog = false">取消</v-btn>
+          <v-btn variant="text" class="action-btn" @click="showDeleteDialog = false">{{ $t('common.cancel') }}</v-btn>
           <v-btn color="error" class="action-btn" prepend-icon="mdi-delete-outline" @click="handleDelete">
-            删除
+            {{ $t('common.delete') }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -422,6 +437,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAudioStore, type AudioFile } from '@/stores/audio'
 import { useToastStore } from '@/stores/toast'
 import AudioImporter from '@/components/AudioImporter.vue'
@@ -432,6 +448,7 @@ import { logger } from '@/utils/logger'
 
 const audioStore = useAudioStore()
 const toast = useToastStore()
+const { t } = useI18n()
 const { dragActive } = useAudioDrop((result) => onImportResult(result))
 const search = ref('')
 const selectedTag = ref<string | null>(null)
@@ -502,12 +519,20 @@ async function onImportResult(result: { created: unknown[]; existing: unknown[];
   )
   if (failedCount > 0) {
     toast.display(
-      `导入完成：新增 ${createdCount} 首，已存在 ${existingCount} 首，${failedCount} 首失败`,
+      t('audio.importDone', {
+        created: createdCount,
+        existing: existingCount,
+        failed: failedCount,
+      }),
       'error',
       6000
     )
   } else {
-    toast.display(`导入完成：新增 ${createdCount} 首，已存在 ${existingCount} 首`, 'success', 4000)
+    toast.display(
+      t('audio.importDoneShort', { created: createdCount, existing: existingCount }),
+      'success',
+      4000
+    )
   }
   await audioStore.loadAllAudio()
   // Focus the newest imported item (last created, archive is time-ordered).
@@ -527,16 +552,16 @@ function formatDuration(seconds: number): string {
 function statusLabel(status: string): string {
   switch (status) {
     case 'pending':
-      return '等待中'
+      return t('audio.statusWaiting')
     case 'processing':
-      return '导入中'
+      return t('audio.statusImporting')
     case 'error':
-      return '失败'
+      return t('audio.statusFailed')
     case 'cancelled':
-      return '已取消'
+      return t('audio.statusCancelled')
     case 'ready':
     default:
-      return '就绪'
+      return t('audio.statusReady')
   }
 }
 
@@ -636,13 +661,9 @@ async function handleBatchDelete() {
     selectedIds.value = []
     showBatchDeleteDialog.value = false
     if (failed > 0) {
-      toast.display(
-        `已删除 ${succeeded} 条音频，${failed} 条因被项目引用或出现错误未删除`,
-        'error',
-        5000
-      )
+      toast.display(t('audio.deletedSome', { succeeded, failed }), 'error', 5000)
     } else {
-      toast.display(`成功删除 ${succeeded} 条音频`, 'success', 3000)
+      toast.display(t('audio.deletedAll', { succeeded }), 'success', 3000)
     }
   } finally {
     batchDeleting.value = false

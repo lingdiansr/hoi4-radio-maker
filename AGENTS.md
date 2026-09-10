@@ -32,7 +32,8 @@ Vue SFC → Pinia store → src/api/client.ts (invokeCommand) → #[tauri::comma
   - `components/` — `AppSidebar`, `ProjectList`, `AudioImporter`, `AudioPickerDialog`, `AudioEditDialog`, `BatchAudioEditDialog`, `PathField`
   - `stores/` — Pinia: `project`, `audio`, `station`, `settings`, `toast`
   - `api/client.ts` + `composables/useCommand.ts` — the only IPC surface
-  - `utils/` — `sanitize.ts` (mirrors backend sanitizer), `logger.ts`
+  - `utils/` — `sanitize.ts` (mirrors backend sanitizer), `logger.ts`, `errors.ts` (error → localized message)
+  - `i18n/` — vue-i18n setup, locale detection, and `locales/{zh-CN,en}.ts` catalogues
 - `src-tauri/src/` — Rust backend (14 files): `lib.rs`, `commands.rs`, `db.rs`, `models.rs`, `error.rs`, `audio.rs`, `audio_repo.rs`, `station.rs`, `generator.rs`, `validator.rs`, `settings.rs`, `ffmpeg_finder.rs`, `hoi4_version.rs`, `naming.rs`
 - `src-tauri/tests/` — Rust integration tests (8 files)
 - `src-tauri/capabilities/` + `capabilities-dev/` — prod vs dev (mcp-bridge) capability files
@@ -69,6 +70,8 @@ bun run tauri android dev | build           # Android targets
 - `<script setup>` + Composition API, no `any`. Vue 3.5, Vuetify 3, Pinia setup-style stores: `defineStore(name, () => {...})`.
 - Never call `invoke` directly: `invokeCommand<T>(cmd, args)` (`src/api/client.ts`) normalizes errors to `AppError { type, message }`; components use `useCommand().run(cmd, args, { successMsg?, silent? })` for toast feedback.
 - Command names are `snake_case`. Arg-key convention is inconsistent — project commands take `{ id, req }`, audio/station take camelCase (`{ projectId, stationId, audioFileId, chance }`); `delete_project` is the odd one out with `{ id, delete_files }`.
+- **All user-facing text goes through vue-i18n** (`src/i18n/`, `zh-CN` primary + `en`): template `$t('key')`, script `const { t } = useI18n()`. Never hardcode display strings. Add keys to both catalogues. Interpolate with `$t('key', { name })`; when a value must stay wrapped in markup, use `<i18n-t keypath="…">` + a named slot. Options arrays that render labels must be `computed`, not module-level `const`.
+- Backend errors are localized in the frontend: `errorMessage(err)` (`src/utils/errors.ts`) maps the `Hoi4RadioError` wire tag to `errors.<type>` using the variant's own fields, falling back to the backend `message`. Use it instead of reading `err.message` directly.
 - Backend fields are snake_case in TS interfaces; local refs/actions camelCase; action verbs: `loadX / createX / updateX / deleteX / addX / removeX / reorderX`.
 - Import progress is pushed via Tauri events; `audio.ts` store has `ensureListening()`/`stopListening()` and upserts + removes `cancelled` entries.
 - Dialogs share classes `.dialog-card` / `.dialog-accent`. Theme is the single dark `radioBureau`; the theme setting in `SettingsView` is not wired to Vuetify.

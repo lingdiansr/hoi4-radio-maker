@@ -12,14 +12,14 @@
       height="44"
       @click="showDialog = true"
     >
-      新建项目
+      {{ $t('nav.newProject') }}
     </v-btn>
 
     <v-divider class="mb-4" opacity="0.2" />
 
     <div v-if="projectStore.projects.length === 0" class="empty-state text-center py-8">
       <v-icon size="48" color="secondary" class="mb-2">mdi-archive-outline</v-icon>
-      <div class="text-body text-secondary">暂无项目</div>
+      <div class="text-body text-secondary">{{ $t('project.emptyList') }}</div>
     </div>
 
     <v-list v-else class="project-list-items" bg-color="transparent">
@@ -57,7 +57,7 @@
         class="settings-link w-100 justify-start"
         @click="router.push('/settings')"
       >
-        全局设置
+        {{ $t('nav.globalSettings') }}
       </v-btn>
     </div>
 
@@ -70,7 +70,7 @@
             <v-icon color="primary" size="28">mdi-radio-tower</v-icon>
             <div>
               <div class="text-mono text-caption text-secondary">NEW BROADCAST</div>
-              <div class="text-display text-h5">新建广播项目</div>
+              <div class="text-display text-h5">{{ $t('project.createTitle') }}</div>
             </div>
           </div>
         </v-card-title>
@@ -78,8 +78,8 @@
         <v-card-text class="pa-6 pt-4">
           <v-text-field
             v-model="form.name"
-            label="项目名称"
-            placeholder="例如：东方之声"
+            :label="$t('project.name')"
+            :placeholder="$t('project.namePlaceholder')"
             prepend-inner-icon="mdi-form-textbox"
             class="mb-4"
             hide-details="auto"
@@ -89,7 +89,7 @@
             <v-col cols="6">
               <v-text-field
                 v-model="form.version"
-                label="Mod 版本"
+                :label="$t('project.version')"
                 placeholder="0.1.0"
                 prepend-inner-icon="mdi-tag-outline"
                 hide-details="auto"
@@ -99,7 +99,7 @@
             <v-col cols="6">
               <v-text-field
                 v-model="form.supported_version"
-                label="支持的游戏版本"
+                :label="$t('project.supportedVersion')"
                 placeholder="*"
                 prepend-inner-icon="mdi-gamepad-variant-outline"
                 hide-details="auto"
@@ -109,8 +109,8 @@
           </v-row>
           <PathField
             v-model="form.library_dir"
-            label="项目库目录"
-            placeholder="选择项目库目录"
+            :label="$t('project.libraryDir')"
+            :placeholder="$t('project.libraryDirPlaceholder')"
             prepend-inner-icon="mdi-folder-open"
             picker-mode="directory"
             class="mb-4"
@@ -118,8 +118,8 @@
           />
           <v-text-field
             :model-value="projectDir"
-            label="项目目录"
-            placeholder="自动根据项目库目录与名称生成"
+            :label="$t('project.outputDir')"
+            :placeholder="$t('project.outputDirPlaceholder')"
             prepend-inner-icon="mdi-folder-cog"
             class="mb-4"
             hide-details="auto"
@@ -127,8 +127,8 @@
           />
           <v-text-field
             v-model="form.author"
-            label="作者"
-            placeholder="可选"
+            :label="$t('project.author')"
+            :placeholder="$t('common.optional')"
             prepend-inner-icon="mdi-account"
             hide-details="auto"
           />
@@ -138,9 +138,9 @@
 
         <v-card-actions class="pa-6">
           <v-spacer />
-          <v-btn variant="text" class="action-btn" @click="showDialog = false">取消</v-btn>
+          <v-btn variant="text" class="action-btn" @click="showDialog = false">{{ $t('common.cancel') }}</v-btn>
           <v-btn color="primary" class="action-btn" prepend-icon="mdi-check-circle" @click="handleCreate">
-            创建
+            {{ $t('common.create') }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -155,16 +155,20 @@
             <v-icon color="error" size="28">mdi-alert-circle</v-icon>
             <div>
               <div class="text-mono text-caption text-secondary">CONFIRM DELETION</div>
-              <div class="text-display text-h5">确认删除</div>
+              <div class="text-display text-h5">{{ $t('project.deleteTitle') }}</div>
             </div>
           </div>
         </v-card-title>
 
         <v-card-text class="pa-6 pt-4 text-body-1">
-          确定要删除项目 <strong class="text-primary">{{ projectToDelete?.name }}</strong> 吗？
+          <i18n-t keypath="project.deleteConfirm" tag="span">
+            <template #name>
+              <strong class="text-primary">{{ projectToDelete?.name }}</strong>
+            </template>
+          </i18n-t>
           <v-checkbox
             v-model="deleteFiles"
-            label="同时删除项目目录及 .mod 文件（不可恢复）"
+            :label="$t('project.deleteFiles')"
             color="error"
             hide-details
             density="compact"
@@ -176,9 +180,9 @@
 
         <v-card-actions class="pa-6">
           <v-spacer />
-          <v-btn variant="text" class="action-btn" @click="showDeleteDialog = false">取消</v-btn>
+          <v-btn variant="text" class="action-btn" @click="showDeleteDialog = false">{{ $t('common.cancel') }}</v-btn>
           <v-btn color="error" class="action-btn" prepend-icon="mdi-delete-outline" @click="handleDelete">
-            删除
+            {{ $t('common.delete') }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -188,6 +192,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, reactive, onUnmounted, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useProjectStore, type Project } from '@/stores/project'
 import { useSettingsStore } from '@/stores/settings'
@@ -197,6 +202,7 @@ import { logger } from '@/utils/logger'
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 
 const projectStore = useProjectStore()
 const settingsStore = useSettingsStore()
@@ -213,7 +219,7 @@ const form = reactive({
 })
 
 function required(v: string) {
-  return !!v.trim() || '此项为必填'
+  return !!v.trim() || t('common.required')
 }
 
 const projectDir = computed(() => {

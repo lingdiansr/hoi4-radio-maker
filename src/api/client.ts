@@ -2,7 +2,9 @@ import { invoke } from "@tauri-apps/api/core";
 
 export interface AppError {
   type: string;
-  message: string;
+  message?: string;
+  /** Backend variants carry their own fields (e.g. `name`, `id`) for interpolation. */
+  [key: string]: unknown;
 }
 
 export function isAppError(err: unknown): err is AppError {
@@ -17,9 +19,11 @@ export function isAppError(err: unknown): err is AppError {
 
 function normalizeError(err: unknown): AppError {
   if (isAppError(err)) {
+    const { type, message, ...rest } = err;
     return {
-      type: err.type,
-      message: err.message || "操作失败",
+      ...rest,
+      type,
+      message: typeof message === "string" ? message : undefined,
     };
   }
   return {

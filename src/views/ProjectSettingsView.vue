@@ -3,7 +3,7 @@
     <v-card class="settings-card" variant="elevated" rounded="xl">
       <v-card-title class="pa-6 pb-2">
         <div class="text-mono text-caption text-secondary mb-1">PROJECT DOSSIER</div>
-        <div class="text-display text-h5">项目信息</div>
+        <div class="text-display text-h5">{{ $t('project.infoTitle') }}</div>
       </v-card-title>
 
       <v-divider opacity="0.2" />
@@ -13,8 +13,8 @@
           <v-col cols="12" lg="8">
             <v-text-field
               v-model="form.name"
-              label="项目名称"
-              placeholder="例如：东方之声"
+              :label="$t('project.name')"
+              :placeholder="$t('project.namePlaceholder')"
               prepend-inner-icon="mdi-radio-tower"
               class="mb-4"
               hide-details="auto"
@@ -22,7 +22,7 @@
             />
             <v-text-field
               v-model="form.version"
-              label="Mod 版本"
+              :label="$t('project.version')"
               placeholder="0.1.0"
               prepend-inner-icon="mdi-tag-outline"
               class="mb-4"
@@ -31,7 +31,7 @@
             />
             <v-text-field
               v-model="form.supported_version"
-              label="支持的游戏版本"
+              :label="$t('project.supportedVersion')"
               placeholder="*"
               prepend-inner-icon="mdi-gamepad-variant-outline"
               class="mb-4"
@@ -40,7 +40,7 @@
             />
             <v-text-field
               :model-value="form.output_dir"
-              label="项目目录"
+              :label="$t('project.outputDir')"
               prepend-inner-icon="mdi-folder-open"
               class="mb-4"
               hide-details="auto"
@@ -48,16 +48,16 @@
             />
             <v-text-field
               v-model="authorInput"
-              label="作者"
-              placeholder="可选"
+              :label="$t('project.author')"
+              :placeholder="$t('common.optional')"
               prepend-inner-icon="mdi-account-edit"
               class="mb-4"
               hide-details="auto"
             />
             <v-combobox
               v-model="form.tags"
-              label="标签"
-              placeholder="输入后按回车添加"
+              :label="$t('project.tags')"
+              :placeholder="$t('project.tagsPlaceholder')"
               prepend-inner-icon="mdi-tag-multiple"
               multiple
               chips
@@ -73,7 +73,7 @@
               :loading="saving"
               @click="save"
             >
-              保存项目信息
+              {{ $t('project.saveInfo') }}
             </v-btn>
 
           </v-col>
@@ -83,7 +83,7 @@
               <v-card-text>
                 <v-icon color="primary" size="32" class="mb-2">mdi-information-outline</v-icon>
                 <div class="text-body text-secondary text-body-2">
-                  项目名称、版本与项目目录会写入生成的 Mod 描述文件。项目目录在项目创建时确定，此处仅作查看；如需更改，请新建项目。
+                  {{ $t('project.infoHint') }}
                 </div>
               </v-card-text>
             </v-card>
@@ -101,22 +101,22 @@
             <v-icon color="primary" size="28">mdi-alert-circle-outline</v-icon>
             <div>
               <div class="text-mono text-caption text-secondary">UNSAVED CHANGES</div>
-              <div class="text-display text-h5">放弃未保存的修改？</div>
+              <div class="text-display text-h5">{{ $t('project.discardTitle') }}</div>
             </div>
           </div>
         </v-card-title>
 
         <v-card-text class="pa-6 pt-4 text-body-1">
-          项目信息已被修改但尚未保存。切换项目将放弃这些更改。
+          {{ $t('project.discardBody') }}
         </v-card-text>
 
         <v-divider opacity="0.2" />
 
         <v-card-actions class="pa-6">
           <v-spacer />
-          <v-btn variant="text" class="action-btn" @click="cancelDiscard">取消</v-btn>
+          <v-btn variant="text" class="action-btn" @click="cancelDiscard">{{ $t('common.cancel') }}</v-btn>
           <v-btn color="primary" class="action-btn" prepend-icon="mdi-check-circle" @click="confirmDiscard">
-            放弃修改
+            {{ $t('project.discardConfirm') }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -126,6 +126,7 @@
 
 <script setup lang="ts">
 import { reactive, watch, ref, computed, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useProjectStore, type UpdateProjectRequest } from '@/stores/project'
 import { useCommand } from '@/composables/useCommand'
@@ -133,6 +134,7 @@ import { useCommand } from '@/composables/useCommand'
 const router = useRouter()
 const projectStore = useProjectStore()
 const { run } = useCommand()
+const { t } = useI18n()
 
 const saving = ref(false)
 const isDirty = ref(false)
@@ -159,7 +161,7 @@ const authorInput = computed({
 })
 
 function required(v: string) {
-  return !!v || '此项为必填'
+  return !!v || t('common.required')
 }
 
 function syncFromProject() {
@@ -214,7 +216,7 @@ async function save() {
     await run(
       'update_project',
       { id: p.id, req: { ...form } },
-      { successMsg: '项目信息已保存' }
+      { successMsg: t('project.infoSaved') }
     )
     isDirty.value = false
   } finally {

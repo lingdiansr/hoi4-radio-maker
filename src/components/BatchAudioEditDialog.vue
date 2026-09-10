@@ -7,8 +7,10 @@
           <v-icon color="primary" size="28">mdi-pencil-box-multiple</v-icon>
           <div>
             <div class="text-mono text-caption text-secondary">BATCH EDIT</div>
-            <div class="text-display text-h5">批量编辑音频</div>
-            <div class="text-secondary text-body-2 mt-1">已选择 {{ ids.length }} 项</div>
+            <div class="text-display text-h5">{{ $t('audio.batchTitle') }}</div>
+            <div class="text-secondary text-body-2 mt-1">
+              {{ $t('audio.batchSelected', { count: ids.length }) }}
+            </div>
           </div>
         </div>
       </v-card-title>
@@ -16,14 +18,14 @@
       <v-card-text class="pa-6 pt-4">
         <v-checkbox
           v-model="apply.artist"
-          label="修改艺术家"
+          :label="$t('audio.editArtist')"
           hide-details
           density="comfortable"
           class="mb-2"
         />
         <v-text-field
           v-model="form.artist"
-          placeholder="留空表示清空"
+          :placeholder="$t('audio.clearHint')"
           prepend-inner-icon="mdi-account-music"
           class="mb-4"
           hide-details="auto"
@@ -32,7 +34,7 @@
 
         <v-checkbox
           v-model="apply.volume"
-          label="修改音量"
+          :label="$t('audio.editVolume')"
           hide-details
           density="comfortable"
           class="mb-2"
@@ -50,14 +52,14 @@
 
         <v-checkbox
           v-model="apply.tags"
-          label="替换标签"
+          :label="$t('audio.replaceTags')"
           hide-details
           density="comfortable"
           class="mb-2"
         />
         <v-combobox
           v-model="form.tags"
-          placeholder="输入后按回车添加"
+          :placeholder="$t('project.tagsPlaceholder')"
           prepend-inner-icon="mdi-tag-multiple"
           multiple
           chips
@@ -72,7 +74,7 @@
 
       <v-card-actions class="pa-6">
         <v-spacer />
-        <v-btn variant="text" class="action-btn" @click="close">取消</v-btn>
+        <v-btn variant="text" class="action-btn" @click="close">{{ $t('common.cancel') }}</v-btn>
         <v-btn
           color="primary"
           class="action-btn"
@@ -80,7 +82,7 @@
           :loading="saving"
           @click="save"
         >
-          应用
+          {{ $t('common.apply') }}
         </v-btn>
       </v-card-actions>
     </v-card>

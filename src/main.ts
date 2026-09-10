@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import '@mdi/font/css/materialdesignicons.css'
 import vuetify from '@/plugins/vuetify'
+import { i18n } from '@/i18n'
 import App from './App.vue'
 import router from './router'
 
@@ -41,8 +42,10 @@ async function bootstrap() {
 
   const app = createApp(App)
   app.use(createPinia())
+  app.use(i18n)
   app.use(router)
   app.use(vuetify)
+  document.documentElement.lang = i18n.global.locale.value
   app.mount('#app')
 }
 

@@ -1,4 +1,5 @@
-import { invokeCommand, type AppError } from '@/api/client'
+import { invokeCommand } from '@/api/client'
+import { errorMessage } from '@/utils/errors'
 import { useToastStore } from '@/stores/toast'
 
 export function useCommand() {
@@ -16,9 +17,8 @@ export function useCommand() {
       }
       return result
     } catch (err) {
-      const appErr = err as AppError
       if (!options?.silent) {
-        toast.display(appErr.message || '操作失败', 'error')
+        toast.display(errorMessage(err), 'error')
       }
       console.error('[command error]', cmd, err)
       return undefined

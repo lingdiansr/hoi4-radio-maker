@@ -16,7 +16,7 @@
           height="44"
           @click="showCreateDialog = true"
         >
-          新建项目
+          {{ $t('nav.newProject') }}
         </v-btn>
       </div>
 
@@ -63,7 +63,7 @@
           :class="{ active: route.path === '/audio' }"
           @click="router.push('/audio')"
         >
-          音频库
+          {{ $t('nav.audioLibrary') }}
         </v-btn>
         <v-btn
           variant="text"
@@ -72,7 +72,7 @@
           :class="{ active: route.path === '/settings' }"
           @click="router.push('/settings')"
         >
-          全局设置
+          {{ $t('nav.globalSettings') }}
         </v-btn>
       </div>
     </div>
@@ -86,7 +86,7 @@
             <v-icon color="primary" size="28">mdi-radio-tower</v-icon>
             <div>
               <div class="text-mono text-caption text-secondary">NEW BROADCAST</div>
-              <div class="text-display text-h5">新建广播项目</div>
+              <div class="text-display text-h5">{{ $t('project.createTitle') }}</div>
             </div>
           </div>
         </v-card-title>
@@ -94,8 +94,8 @@
         <v-card-text class="pa-6 pt-4">
           <v-text-field
             v-model="form.name"
-            label="项目名称"
-            placeholder="例如：东方之声"
+            :label="$t('project.name')"
+            :placeholder="$t('project.namePlaceholder')"
             prepend-inner-icon="mdi-form-textbox"
             class="mb-4"
             hide-details="auto"
@@ -105,7 +105,7 @@
             <v-col cols="6">
               <v-text-field
                 v-model="form.version"
-                label="Mod 版本"
+                :label="$t('project.version')"
                 placeholder="0.1.0"
                 prepend-inner-icon="mdi-tag-outline"
                 hide-details="auto"
@@ -115,7 +115,7 @@
             <v-col cols="6">
               <v-text-field
                 v-model="form.supported_version"
-                label="支持的游戏版本"
+                :label="$t('project.supportedVersion')"
                 placeholder="*"
                 prepend-inner-icon="mdi-gamepad-variant-outline"
                 hide-details="auto"
@@ -125,8 +125,8 @@
           </v-row>
           <PathField
             v-model="form.library_dir"
-            label="项目库目录"
-            placeholder="选择项目库目录"
+            :label="$t('project.libraryDir')"
+            :placeholder="$t('project.libraryDirPlaceholder')"
             prepend-inner-icon="mdi-folder-open"
             picker-mode="directory"
             class="mb-4"
@@ -134,8 +134,8 @@
           />
           <v-text-field
             :model-value="projectDir"
-            label="项目目录"
-            placeholder="自动根据项目库目录与名称生成"
+            :label="$t('project.outputDir')"
+            :placeholder="$t('project.outputDirPlaceholder')"
             prepend-inner-icon="mdi-folder-cog"
             class="mb-4"
             hide-details="auto"
@@ -143,16 +143,16 @@
           />
           <v-text-field
             v-model="form.author"
-            label="作者"
-            placeholder="可选"
+            :label="$t('project.author')"
+            :placeholder="$t('common.optional')"
             prepend-inner-icon="mdi-account"
             hide-details="auto"
             class="mb-4"
           />
           <v-combobox
             v-model="form.tags"
-            label="标签"
-            placeholder="输入后按回车添加"
+            :label="$t('project.tags')"
+            :placeholder="$t('project.tagsPlaceholder')"
             prepend-inner-icon="mdi-tag-multiple"
             multiple
             chips
@@ -165,14 +165,14 @@
 
         <v-card-actions class="pa-6">
           <v-spacer />
-          <v-btn variant="text" class="action-btn" @click="showCreateDialog = false">取消</v-btn>
+          <v-btn variant="text" class="action-btn" @click="showCreateDialog = false">{{ $t('common.cancel') }}</v-btn>
           <v-btn
             color="primary"
             class="action-btn"
             prepend-icon="mdi-check-circle"
             @click="handleCreate"
           >
-            创建
+            {{ $t('common.create') }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -187,16 +187,20 @@
             <v-icon color="error" size="28">mdi-alert-circle</v-icon>
             <div>
               <div class="text-mono text-caption text-secondary">CONFIRM DELETION</div>
-              <div class="text-display text-h5">确认删除</div>
+              <div class="text-display text-h5">{{ $t('project.deleteTitle') }}</div>
             </div>
           </div>
         </v-card-title>
 
         <v-card-text class="pa-6 pt-4 text-body-1">
-          确定要删除项目 <strong class="text-primary">{{ projectToDelete?.name }}</strong> 吗？此操作不会删除全局音频库中的音频。
+          <i18n-t keypath="project.deleteConfirmKeepAudio" tag="span">
+            <template #name>
+              <strong class="text-primary">{{ projectToDelete?.name }}</strong>
+            </template>
+          </i18n-t>
           <v-checkbox
             v-model="deleteFiles"
-            label="同时删除项目目录及 .mod 文件（不可恢复）"
+            :label="$t('project.deleteFiles')"
             color="error"
             hide-details
             density="compact"
@@ -208,9 +212,9 @@
 
         <v-card-actions class="pa-6">
           <v-spacer />
-          <v-btn variant="text" class="action-btn" @click="showDeleteDialog = false">取消</v-btn>
+          <v-btn variant="text" class="action-btn" @click="showDeleteDialog = false">{{ $t('common.cancel') }}</v-btn>
           <v-btn color="error" class="action-btn" prepend-icon="mdi-delete-outline" @click="handleDelete">
-            删除
+            {{ $t('common.delete') }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -220,6 +224,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore, type Project } from '@/stores/project'
 import { useSettingsStore } from '@/stores/settings'
@@ -231,6 +236,7 @@ const projectStore = useProjectStore()
 const settingsStore = useSettingsStore()
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 
 const showCreateDialog = ref(false)
 const showDeleteDialog = ref(false)
@@ -246,7 +252,7 @@ const form = reactive({
 })
 
 function required(v: string) {
-  return !!v.trim() || '此项为必填'
+  return !!v.trim() || t('common.required')
 }
 
 const projectDir = computed(() => {

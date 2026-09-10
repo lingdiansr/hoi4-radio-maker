@@ -17,7 +17,7 @@
     >
       {{ toast.message }}
       <template #actions>
-        <v-btn variant="text" size="small" @click="toast.show = false">关闭</v-btn>
+        <v-btn variant="text" size="small" @click="toast.show = false">{{ $t('common.close') }}</v-btn>
       </template>
     </v-snackbar>
   </v-app>
@@ -31,6 +31,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useToastStore } from '@/stores/toast'
 import { useTheme } from '@/plugins/vuetify'
 import { applyTheme, watchSystemTheme } from '@/plugins/theme'
+import { errorMessage } from '@/utils/errors'
 import AppSidebar from '@/components/AppSidebar.vue'
 
 const toast = useToastStore()
@@ -57,7 +58,7 @@ onMounted(async () => {
     await settingsStore.loadSettings()
   } catch (err) {
     if (isAppError(err) && err.type === 'ffmpeg_not_found') {
-      toast.display(err.message, 'error', 8000)
+      toast.display(errorMessage(err), 'error', 8000)
     }
     // Other settings errors are not critical on startup.
   }

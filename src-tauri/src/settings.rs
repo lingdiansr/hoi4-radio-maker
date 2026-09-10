@@ -26,6 +26,9 @@ pub struct Settings {
     pub default_version: Option<String>,
     pub default_supported_version: Option<String>,
     pub default_tags: Vec<String>,
+    /// UI language (`zh-CN` / `en`); `None` follows the system locale.
+    #[serde(default)]
+    pub language: Option<String>,
 }
 
 impl Default for Settings {
@@ -41,6 +44,7 @@ impl Default for Settings {
             default_version: Some("0.1.0".to_string()),
             default_supported_version: None,
             default_tags: vec!["Sound".to_string()],
+            language: None,
         }
     }
 }

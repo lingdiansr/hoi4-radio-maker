@@ -7,7 +7,7 @@
           <v-icon color="primary" size="28">mdi-music-box-multiple</v-icon>
           <div>
             <div class="text-mono text-caption text-secondary">AUDIO ARCHIVE</div>
-            <div class="text-display text-h5">从音频库选择</div>
+            <div class="text-display text-h5">{{ $t('audio.pickerTitle') }}</div>
           </div>
         </div>
       </v-card-title>
@@ -15,8 +15,8 @@
       <v-card-text class="pa-6 pt-4">
         <v-text-field
           v-model="search"
-          label="搜索音频"
-          placeholder="标题、艺术家、哈希…"
+          :label="$t('audio.searchLabel')"
+          :placeholder="$t('audio.searchPlaceholder')"
           prepend-inner-icon="mdi-magnify"
           variant="outlined"
           density="comfortable"
@@ -25,7 +25,7 @@
         />
 
         <div class="text-caption text-secondary mb-2">
-          仅显示状态为“就绪”的音频
+          {{ $t('audio.qualifiedOnly') }}
         </div>
         <div class="audio-list">
           <v-list v-if="filteredAudio.length > 0" bg-color="transparent">
@@ -46,14 +46,14 @@
               </template>
               <v-list-item-title>{{ audio.title }}</v-list-item-title>
               <v-list-item-subtitle>
-                {{ audio.artist || '未知艺术家' }} · {{ formatDuration(audio.duration_secs) }}
+                {{ audio.artist || $t('common.unknownArtist') }} · {{ formatDuration(audio.duration_secs) }}
                 · {{ audio.sample_rate }} Hz · {{ audio.source_hash.slice(0, 8) }}
               </v-list-item-subtitle>
             </v-list-item>
           </v-list>
           <div v-else class="empty-state text-center py-8">
             <v-icon size="48" color="secondary" class="mb-2">mdi-music-note-off</v-icon>
-            <div class="text-body text-secondary">未找到匹配音频</div>
+            <div class="text-body text-secondary">{{ $t('audio.pickerNotFound') }}</div>
           </div>
         </div>
       </v-card-text>
@@ -62,7 +62,7 @@
 
       <v-card-actions class="pa-6">
         <div class="text-body text-secondary">
-          已选择 {{ selected.size }} 首
+          {{ $t('audio.pickerSelected', { count: selected.size }) }}
         </div>
         <v-spacer />
         <AudioImporter
@@ -70,9 +70,9 @@
           class="mr-3"
           @imported="onImported"
         />
-        <v-btn variant="text" class="action-btn" @click="dialog = false">取消</v-btn>
+        <v-btn variant="text" class="action-btn" @click="dialog = false">{{ $t('common.cancel') }}</v-btn>
         <v-btn color="primary" class="action-btn" prepend-icon="mdi-plus" @click="confirm">
-          添加
+          {{ $t('common.add') }}
         </v-btn>
       </v-card-actions>
     </v-card>
@@ -81,6 +81,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAudioStore, type BatchImportResult } from '@/stores/audio'
 import { useToastStore } from '@/stores/toast'
 import AudioImporter from '@/components/AudioImporter.vue'
@@ -95,6 +96,7 @@ const emit = defineEmits<{
 
 const audioStore = useAudioStore()
 const toast = useToastStore()
+const { t } = useI18n()
 const { dragActive } = useAudioDrop((result) => onDropImported(result))
 const search = ref('')
 const selected = ref<Set<string>>(new Set())
@@ -142,10 +144,14 @@ async function onDropImported(result: BatchImportResult) {
   }
   const failedCount = result.failed.length
   if (failedCount > 0) {
-    toast.display(`已导入 ${result.created.length} 首，${failedCount} 首失败`, 'error', 6000)
+    toast.display(
+      t('audio.importPartialFailed', { created: result.created.length, failed: failedCount }),
+      'error',
+      6000
+    )
   } else {
     toast.display(
-      `已导入 ${result.created.length} 首音频，可添加到电台`,
+      t('audio.importSuccess', { created: result.created.length }),
       'success',
       4000
     )

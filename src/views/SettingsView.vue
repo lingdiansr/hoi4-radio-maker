@@ -4,7 +4,7 @@
       <v-card-title class="d-flex justify-space-between align-start pa-6 pb-2">
         <div>
           <div class="text-mono text-caption text-secondary mb-1">GLOBAL CONFIGURATION</div>
-          <div class="text-display text-h5">全局设置</div>
+          <div class="text-display text-h5">{{ $t('settings.title') }}</div>
         </div>
         <v-btn
           variant="text"
@@ -12,7 +12,7 @@
           class="back-btn"
           @click="router.back()"
         >
-          返回
+          {{ $t('common.back') }}
         </v-btn>
       </v-card-title>
 
@@ -23,40 +23,40 @@
           <v-col cols="12" md="8">
             <PathField
               v-model="ffmpegPath"
-              label="ffmpeg 路径"
-              placeholder="选择 ffmpeg 可执行文件"
+              :label="$t('settings.ffmpegPath')"
+              :placeholder="$t('settings.ffmpegPlaceholder')"
               prepend-inner-icon="mdi-movie-play"
               picker-mode="file"
               class="mb-4"
             />
             <PathField
               v-model="ffprobePath"
-              label="ffprobe 路径"
-              placeholder="选择 ffprobe 可执行文件"
+              :label="$t('settings.ffprobePath')"
+              :placeholder="$t('settings.ffprobePlaceholder')"
               prepend-inner-icon="mdi-magnify-scan"
               picker-mode="file"
               class="mb-4"
             />
             <PathField
               v-model="hoi4Path"
-              label="HOI4 游戏目录"
-              placeholder="选择 Hearts of Iron IV 安装目录"
+              :label="$t('settings.hoi4Dir')"
+              :placeholder="$t('settings.hoi4Placeholder')"
               prepend-inner-icon="mdi-folder-open"
               picker-mode="directory"
               class="mb-4"
             />
             <PathField
               v-model="defaultProjectDir"
-              label="默认项目库目录"
-              placeholder="选择默认项目库目录"
+              :label="$t('settings.defaultLibrary')"
+              :placeholder="$t('settings.defaultLibraryPlaceholder')"
               prepend-inner-icon="mdi-folder-cog"
               picker-mode="directory"
               class="mb-4"
             />
             <v-text-field
               v-model="settings.default_author"
-              label="默认作者"
-              placeholder="未设置时使用系统用户名"
+              :label="$t('settings.defaultAuthor')"
+              :placeholder="$t('settings.defaultAuthorPlaceholder')"
               prepend-inner-icon="mdi-account"
               class="mb-4"
               hide-details="auto"
@@ -64,7 +64,7 @@
             />
             <v-text-field
               v-model="settings.default_version"
-              label="默认项目版本"
+              :label="$t('settings.defaultVersion')"
               placeholder="0.1.0"
               prepend-inner-icon="mdi-tag-outline"
               class="mb-4"
@@ -72,8 +72,8 @@
             />
             <v-text-field
               v-model="settings.default_supported_version"
-              label="默认兼容游戏版本"
-              placeholder="留空时自动探测 HOI4 版本"
+              :label="$t('settings.defaultSupportedVersion')"
+              :placeholder="$t('settings.defaultSupportedPlaceholder')"
               prepend-inner-icon="mdi-gamepad-variant"
               class="mb-4"
               hide-details="auto"
@@ -81,8 +81,8 @@
             />
             <v-combobox
               v-model="settings.default_tags"
-              label="默认标签"
-              placeholder="输入后按回车添加"
+              :label="$t('settings.defaultTags')"
+              :placeholder="$t('project.tagsPlaceholder')"
               prepend-inner-icon="mdi-tag-multiple"
               multiple
               chips
@@ -92,7 +92,7 @@
             />
             <v-slider
               v-model="settings.import_concurrency"
-              label="导入并发数"
+              :label="$t('settings.concurrency')"
               min="1"
               max="16"
               step="1"
@@ -103,7 +103,7 @@
             />
             <v-select
               v-model="settings.theme"
-              label="主题"
+              :label="$t('settings.theme')"
               :items="themeOptions"
               item-title="label"
               item-value="value"
@@ -111,12 +111,23 @@
               class="mb-4"
               hide-details="auto"
             />
+            <v-select
+              :model-value="settingsStore.settings.language || currentLocale"
+              :label="$t('settings.language')"
+              :items="languageOptions"
+              item-title="label"
+              item-value="value"
+              prepend-inner-icon="mdi-translate"
+              class="mb-4"
+              hide-details="auto"
+              @update:model-value="settingsStore.setLanguage"
+            />
             <v-alert
               v-if="!settingsStore.ffmpegAvailable"
               type="warning"
               variant="tonal"
               class="mb-6"
-              text="未检测到 ffmpeg / ffprobe。请安装 ffmpeg 或在上方手动指定路径，否则无法导入音频。"
+              :text="$t('settings.ffmpegMissing')"
             />
             <v-btn
               color="primary"
@@ -126,7 +137,7 @@
               :loading="saving"
               @click="save"
             >
-              保存设置
+              {{ $t('settings.save') }}
             </v-btn>
           </v-col>
 
@@ -135,11 +146,18 @@
               <v-card-text>
                 <v-icon color="primary" size="32" class="mb-2">mdi-information-outline</v-icon>
                 <div class="text-body text-secondary text-body-2">
-                  全局设置会保存在应用数据目录中，对所有项目生效。启动时会自动探测 ffmpeg 与 ffprobe；若未找到且未手动指定，将提示错误。
+                  {{ $t('settings.hintIntro') }}
                   <br><br>
-                  <strong>默认项目库目录</strong>用于新建项目时自动生成项目文件夹与 .mod 文件。实际目录结构为「项目库目录/项目名称/项目名称.mod」和「项目库目录/项目名称/项目名称/」。<strong>默认兼容游戏版本</strong>留空时，会尝试从 HOI4 游戏目录读取 launcher-settings.json 自动填充。
+                  <i18n-t keypath="settings.hintPaths" tag="span">
+                    <template #libraryDir>
+                      <strong>{{ $t('settings.hintLibraryDir') }}</strong>
+                    </template>
+                    <template #supportedVersion>
+                      <strong>{{ $t('settings.hintSupportedVersion') }}</strong>
+                    </template>
+                  </i18n-t>
                   <br><br>
-                  导入并发数控制同时计算文件哈希的并行度（ffmpeg 转码会在此基础上减半运行）。
+                  {{ $t('settings.hintConcurrency') }}
                 </div>
               </v-card-text>
             </v-card>
@@ -148,7 +166,7 @@
         <v-row v-else>
           <v-col cols="12" class="text-center py-8">
             <v-progress-circular indeterminate color="primary" />
-            <div class="text-secondary mt-2">加载设置中...</div>
+            <div class="text-secondary mt-2">{{ $t('common.loading') }}</div>
           </v-col>
         </v-row>
       </v-card-text>
@@ -157,14 +175,14 @@
     <v-card class="settings-card mt-6" variant="elevated" rounded="xl">
       <v-card-title class="pa-6 pb-2">
         <div class="text-mono text-caption text-secondary mb-1">DIAGNOSTICS</div>
-        <div class="text-display text-h5">日志与诊断</div>
+        <div class="text-display text-h5">{{ $t('settings.logsTitle') }}</div>
       </v-card-title>
 
       <v-divider opacity="0.2" />
 
       <v-card-text class="pa-6">
         <div class="text-body text-secondary mb-4">
-          日志文件保存在应用日志目录中，遇到问题时可用于排查。当前日志级别：Info。
+          {{ $t('settings.logsBody') }}
         </div>
         <div class="d-flex gap-3 flex-wrap">
           <v-btn
@@ -172,14 +190,14 @@
             prepend-icon="mdi-folder-open-outline"
             @click="openLogFolder"
           >
-            打开日志文件夹
+            {{ $t('settings.openLogFolder') }}
           </v-btn>
           <v-btn
             variant="outlined"
             prepend-icon="mdi-content-copy"
             @click="copyLogPath"
           >
-            复制日志路径
+            {{ $t('settings.copyLogPath') }}
           </v-btn>
         </div>
       </v-card-text>
@@ -189,15 +207,18 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { appLogDir } from '@tauri-apps/api/path'
 import { openPath } from '@tauri-apps/plugin-opener'
+import { LOCALE_LABELS, SUPPORTED_LOCALES } from '@/i18n'
 import { useSettingsStore } from '@/stores/settings'
 import { logger } from '@/utils/logger'
 import PathField from '@/components/PathField.vue'
 
 const router = useRouter()
 const settingsStore = useSettingsStore()
+const { t, locale: currentLocale } = useI18n()
 
 const saving = ref(false)
 
@@ -244,11 +265,15 @@ const defaultProjectDir = computed({
   },
 })
 
-const themeOptions = [
-  { label: '跟随系统', value: 'system' },
-  { label: '浅色', value: 'light' },
-  { label: '深色', value: 'dark' },
-]
+const themeOptions = computed(() => [
+  { label: t('settings.themeSystem'), value: 'system' },
+  { label: t('settings.themeLight'), value: 'light' },
+  { label: t('settings.themeDark'), value: 'dark' },
+])
+
+const languageOptions = computed(() =>
+  SUPPORTED_LOCALES.map((value) => ({ label: LOCALE_LABELS[value], value }))
+)
 
 onMounted(async () => {
   await settingsStore.loadSettings()

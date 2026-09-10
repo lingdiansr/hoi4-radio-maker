@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { invokeCommand } from '@/api/client'
+import { setLocale } from '@/i18n'
 import { logger } from '@/utils/logger'
 
 export interface Settings {
@@ -14,6 +15,8 @@ export interface Settings {
   default_version?: string
   default_supported_version?: string
   default_tags: string[]
+  /** UI language; `null`/absent follows the system locale. */
+  language?: string | null
 }
 
 export interface SettingsResponse extends Settings {
@@ -40,6 +43,10 @@ export const useSettingsStore = defineStore('settings', () => {
       settings.value = rest
       detectedSupportedVersion.value = detected_supported_version
       ffmpegAvailable.value = ffmpeg_available
+      // An unset language keeps the system-detected default from `@/i18n`.
+      if (rest.language) {
+        setLocale(rest.language)
+      }
       return resp
     } finally {
       loading.value = false
@@ -61,6 +68,12 @@ export const useSettingsStore = defineStore('settings', () => {
     return invokeCommand<string>('get_default_library_dir')
   }
 
+  /** Persist the chosen UI language and apply it immediately. */
+  async function setLanguage(locale: string) {
+    await saveSettings({ language: locale })
+    setLocale(locale)
+  }
+
   return {
     settings,
     detectedSupportedVersion,
@@ -70,5 +83,6 @@ export const useSettingsStore = defineStore('settings', () => {
     loadSettings,
     saveSettings,
     getDefaultLibraryDir,
+    setLanguage,
   }
 })

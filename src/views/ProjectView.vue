@@ -5,7 +5,7 @@
         <div>
           <div class="text-mono text-caption text-secondary mb-1">PROJECT</div>
           <h1 class="text-display text-h3 mb-2">
-            {{ projectStore.currentProject?.name || '未选择项目' }}
+            {{ projectStore.currentProject?.name || $t('nav.noProjectSelected') }}
           </h1>
           <div v-if="projectStore.currentProject" class="text-mono text-secondary">
             {{ projectStore.currentProject.version }} · {{ projectStore.currentProject.supported_version }}
@@ -18,7 +18,7 @@
             class="action-btn"
             @click="validate"
           >
-            验证
+            {{ $t('project.validate') }}
           </v-btn>
           <v-btn
             color="primary"
@@ -26,7 +26,7 @@
             class="action-btn generate-btn"
             @click="generate"
           >
-            生成 Mod
+            {{ $t('project.generateMod') }}
           </v-btn>
         </div>
       </div>
@@ -35,8 +35,8 @@
     <v-divider opacity="0.2" />
 
     <v-tabs v-model="tab" class="bureau-tabs" bg-color="transparent">
-      <v-tab value="stations" prepend-icon="mdi-antenna">电台编辑</v-tab>
-      <v-tab value="settings" prepend-icon="mdi-file-cog">项目信息</v-tab>
+      <v-tab value="stations" prepend-icon="mdi-antenna">{{ $t('nav.stationEditor') }}</v-tab>
+      <v-tab value="settings" prepend-icon="mdi-file-cog">{{ $t('nav.projectInfo') }}</v-tab>
     </v-tabs>
 
     <v-window v-model="tab" class="bureau-window">
@@ -52,6 +52,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import StationEditorView from '@/views/StationEditorView.vue'
 import ProjectSettingsView from '@/views/ProjectSettingsView.vue'
@@ -73,6 +74,7 @@ const projectStore = useProjectStore()
 const audioStore = useAudioStore()
 const { run } = useCommand()
 const toast = useToastStore()
+const { t } = useI18n()
 
 async function loadProject(id: string) {
   if (!id) return
@@ -83,7 +85,7 @@ async function loadProject(id: string) {
     await audioStore.loadAudio(id)
   } else {
     projectStore.setCurrentProject(null)
-    toast.display('未找到指定项目', 'error', 4000)
+    toast.display(t('project.notFound'), 'error', 4000)
     router.replace('/')
   }
 }
@@ -100,7 +102,7 @@ async function generate() {
     projectId: projectStore.currentProject.id,
   })
   if (out) {
-    toast.display(`已生成到: ${out}`, 'success', 6000)
+    toast.display(t('project.generatedTo', { path: out }), 'success', 6000)
   }
 }
 
@@ -110,9 +112,13 @@ async function validate() {
     projectId: projectStore.currentProject.id,
   })
   if (report) {
-    const status = report.passed ? '通过' : '未通过'
+    const status = report.passed ? t('project.validatePassed') : t('project.validateFailed')
     toast.display(
-      `验证${status} · 错误: ${report.errors.length} · 警告: ${report.warnings.length}`,
+      t('project.validateSummary', {
+        status,
+        errors: report.errors.length,
+        warnings: report.warnings.length,
+      }),
       report.passed ? 'success' : 'error',
       6000
     )
