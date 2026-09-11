@@ -239,6 +239,7 @@ fn format_trigger(trigger: &Trigger) -> String {
         Trigger::Tag { value } => format!("tag = {}", value),
         Trigger::HasGovernment { ideology } => format!("has_government = {}", ideology),
         Trigger::IsInFaction { tag } => format!("is_in_faction_with = {}", tag),
+        Trigger::Generic { name, value } => format!("{} = {}", name, value),
     }
 }
 
@@ -295,6 +296,8 @@ mod tests {
             tags: vec!["Sound".to_string()],
             author: None,
             output_dir: PathBuf::from("/tmp/my_project"),
+            load_vanilla_triggers: true,
+            trigger_mod_dirs: vec![],
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };

@@ -22,6 +22,8 @@ async fn test_validate_generated_mod_reports_missing_ogg() {
         tags: vec!["Sound".to_string()],
         author: None,
         output_dir: output_dir.clone(),
+        load_vanilla_triggers: true,
+        trigger_mod_dirs: vec![],
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
@@ -67,7 +69,7 @@ async fn test_validate_generated_mod_reports_missing_ogg() {
     )
     .expect("generate_mod failed");
 
-    let report = validate_mod_output(&output_dir, None)
+    let report = validate_mod_output(&output_dir, None, &Default::default())
         .await
         .expect("validate_mod_output failed");
 
@@ -97,6 +99,8 @@ async fn test_validate_complete_mod_reports_ogg_decode_error() {
         tags: vec!["Sound".to_string()],
         author: None,
         output_dir: output_dir.clone(),
+        load_vanilla_triggers: true,
+        trigger_mod_dirs: vec![],
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
@@ -148,7 +152,7 @@ async fn test_validate_complete_mod_reports_ogg_decode_error() {
     let ogg_path = output_dir.join("music").join("dummy_song.ogg");
     std::fs::write(&ogg_path, b"").expect("failed to write dummy ogg");
 
-    let report = validate_mod_output(&output_dir, None)
+    let report = validate_mod_output(&output_dir, None, &Default::default())
         .await
         .expect("validate_mod_output failed");
 
@@ -182,6 +186,8 @@ async fn test_validate_scans_station_subdirectories() {
         tags: vec![],
         author: None,
         output_dir: output_dir.clone(),
+        load_vanilla_triggers: true,
+        trigger_mod_dirs: vec![],
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
@@ -242,7 +248,7 @@ async fn test_validate_scans_station_subdirectories() {
     std::fs::set_permissions(&fake_ffprobe, perm).unwrap();
     let ffprobe = fake_ffprobe.to_str().unwrap();
 
-    let report = validate_mod_output(&output_dir, Some(ffprobe))
+    let report = validate_mod_output(&output_dir, Some(ffprobe), &Default::default())
         .await
         .expect("validate_mod_output failed");
     assert!(
@@ -254,7 +260,7 @@ async fn test_validate_scans_station_subdirectories() {
 
     // A missing OGG inside the subdirectory is still detected.
     std::fs::remove_file(station_dir.join("nested.ogg")).unwrap();
-    let report = validate_mod_output(&output_dir, Some(ffprobe))
+    let report = validate_mod_output(&output_dir, Some(ffprobe), &Default::default())
         .await
         .expect("validate_mod_output failed");
     assert!(!report.passed);
@@ -266,4 +272,123 @@ async fn test_validate_scans_station_subdirectories() {
         "expected a missing-OGG error, got: {:?}",
         report.errors
     );
+}
+
+/// A `.txt` whose trigger is absent from the loaded vocabulary, or whose tag /
+/// ideology does not exist in it, is reported as a warning; a correct one is
+/// not. An empty vocabulary disables the check entirely.
+#[tokio::test]
+async fn test_validate_checks_triggers_against_vocabulary() {
+    use hoi4_radio_maker_lib::scripts::{ScriptVocabulary, TriggerDef};
+    use hoi4_radio_maker_lib::validator::validate_mod_output;
+    use std::collections::{BTreeMap, BTreeSet};
+
+    let temp = tempfile::tempdir().expect("failed to create temp dir");
+    let output_dir = temp.path().join("mod").join("trig_radio");
+    let music_dir = output_dir.join("music").join("radio_chi");
+    std::fs::create_dir_all(&music_dir).unwrap();
+
+    std::fs::write(music_dir.join("radio_chi.ogg"), b"dummy ogg").unwrap();
+    std::fs::write(
+        music_dir.join("radio_chi.asset"),
+        "music = { name = \"song_a\" file = \"radio_chi.ogg\" volume = 1.0 }",
+    )
+    .unwrap();
+    std::fs::write(
+        music_dir.join("radio_chi.txt"),
+        r#"music_station = "radio_chi"
+music = {
+    song = "song_a"
+    chance = {
+        factor = 1
+        modifier = {
+            factor = 2
+            tag = CHI
+            has_war = yes
+            made_up_trigger = yes
+        }
+    }
+}
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        output_dir.join("descriptor.mod"),
+        "name=\"Trig\"\n",
+    )
+    .unwrap();
+    let loc_dir = output_dir.join("localisation").join("simp_chinese");
+    std::fs::create_dir_all(&loc_dir).unwrap();
+    std::fs::write(
+        loc_dir.join("trig_radio_music_l_simp_chinese.yml"),
+        "\u{FEFF}l_simp_chinese:\n song_a:0 \"Song A\"\n",
+    )
+    .unwrap();
+
+    // A vocabulary that knows has_war/tag and CHI, but not made_up_trigger.
+    let mut vocab = ScriptVocabulary::default();
+    let mut triggers: BTreeMap<String, TriggerDef> = BTreeMap::new();
+    for name in ["has_war", "tag", "is_in_faction_with", "has_government"] {
+        triggers.insert(
+            name.to_string(),
+            TriggerDef {
+                name: name.to_string(),
+                scopes: vec!["COUNTRY".to_string()],
+            },
+        );
+    }
+    vocab.triggers = triggers;
+    let mut tags = BTreeSet::new();
+    tags.insert("CHI".to_string());
+    vocab.country_tags = tags;
+
+    let report = validate_mod_output(&output_dir, None, &vocab)
+        .await
+        .expect("validate failed");
+
+    assert!(
+        report
+            .warnings
+            .iter()
+            .any(|w| w.contains("made_up_trigger") && w.contains("Unknown trigger")),
+        "expected an unknown-trigger warning, got: {:?}",
+        report.warnings
+    );
+    // The known trigger and known tag produce no vocabulary warnings.
+    assert!(
+        !report
+            .warnings
+            .iter()
+            .any(|w| w.contains("'tag'") || w.contains("'has_war'")),
+        "known triggers must not warn, got: {:?}",
+        report.warnings
+    );
+
+    // A wrong tag is caught once the vocabulary carries country tags.
+    let mut bad = vocab.clone();
+    let mut tags = BTreeSet::new();
+    tags.insert("GER".to_string());
+    bad.country_tags = tags;
+    let report = validate_mod_output(&output_dir, None, &bad)
+        .await
+        .expect("validate failed");
+    assert!(
+        report
+            .warnings
+            .iter()
+            .any(|w| w.contains("Unknown country tag 'CHI'")),
+        "expected an unknown-tag warning, got: {:?}",
+        report.warnings
+    );
+
+    // Without a vocabulary the check is skipped.
+    let report = validate_mod_output(&output_dir, None, &ScriptVocabulary::default())
+        .await
+        .expect("validate failed");
+    assert!(
+        !report.warnings.iter().any(|w| w.contains("Unknown trigger")),
+        "empty vocabulary must skip the check, got: {:?}",
+        report.warnings
+    );
+
 }

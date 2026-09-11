@@ -483,6 +483,26 @@
                     density="compact"
                     hide-details
                   />
+                  <template v-else-if="trigger.type === 'generic'">
+                    <v-select
+                      v-model="trigger.name"
+                      :items="vocabularyTriggerOptions"
+                      :label="$t('station.triggerName')"
+                      :placeholder="$t('station.triggerNamePlaceholder')"
+                      variant="outlined"
+                      density="compact"
+                      hide-details
+                      class="trigger-name"
+                    />
+                    <v-text-field
+                      v-model="trigger.value"
+                      :label="$t('station.triggerValue')"
+                      placeholder="yes"
+                      variant="outlined"
+                      density="compact"
+                      hide-details
+                    />
+                  </template>
                   <v-btn
                     icon="mdi-delete-outline"
                     variant="text"
@@ -599,7 +619,20 @@ const triggerTypes = computed(() => [
   { label: t('station.triggerTag'), value: 'tag' as TriggerType },
   { label: t('station.triggerIdeology'), value: 'has_government' as TriggerType },
   { label: t('station.triggerFaction'), value: 'is_in_faction' as TriggerType },
+  { label: t('station.triggerGeneric'), value: 'generic' as TriggerType },
 ])
+
+/**
+ * Trigger names from the project's loaded vocabulary, restricted to
+ * country-scoped triggers since music chances are evaluated for a country.
+ */
+const vocabularyTriggerOptions = computed(() => {
+  const triggers = stationStore.vocabulary?.triggers ?? {}
+  return Object.values(triggers)
+    .filter((d) => d.scopes.length === 0 || d.scopes.includes('COUNTRY'))
+    .map((d) => d.name)
+    .sort((a, b) => a.localeCompare(b))
+})
 
 function required(v: string) {
   return !!v || t('common.required')
@@ -616,6 +649,7 @@ function slug(name: string) {
 
 onMounted(() => {
   stationStore.loadStations()
+  stationStore.loadVocabulary()
   if (projectId.value) {
     audioStore.loadAudio(projectId.value)
   }
@@ -792,6 +826,10 @@ function cleanChance(chance: ChanceConfig): ChanceConfig {
         if (t.type === 'tag') base.value = t.value
         if (t.type === 'has_government') base.ideology = t.ideology
         if (t.type === 'is_in_faction') base.tag = t.tag
+        if (t.type === 'generic') {
+          base.name = t.name
+          base.value = t.value as string
+        }
         return base
       }),
     })),

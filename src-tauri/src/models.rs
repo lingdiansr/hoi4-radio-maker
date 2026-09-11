@@ -12,8 +12,18 @@ pub struct Project {
     pub tags: Vec<String>,
     pub author: Option<String>,
     pub output_dir: PathBuf,
+    /// Whether the installed game's built-in trigger vocabulary is loaded.
+    #[serde(default = "default_true")]
+    pub load_vanilla_triggers: bool,
+    /// Mod directories whose triggers, tags, and ideologies are also loaded.
+    #[serde(default)]
+    pub trigger_mod_dirs: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// Import/processing status of an audio file.
@@ -125,10 +135,24 @@ pub struct Modifier {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Trigger {
-    HasWar { value: bool },
-    Tag { value: String },
-    HasGovernment { ideology: String },
-    IsInFaction { tag: String },
+    HasWar {
+        value: bool,
+    },
+    Tag {
+        value: String,
+    },
+    HasGovernment {
+        ideology: String,
+    },
+    IsInFaction {
+        tag: String,
+    },
+    /// Any other trigger from the loaded game/mod vocabulary, emitted as
+    /// `name = value` verbatim.
+    Generic {
+        name: String,
+        value: String,
+    },
 }
 
 /// Request payload for creating a new project.
@@ -151,6 +175,10 @@ pub struct UpdateProjectRequest {
     pub tags: Vec<String>,
     pub author: Option<String>,
     pub output_dir: PathBuf,
+    #[serde(default = "default_true")]
+    pub load_vanilla_triggers: bool,
+    #[serde(default)]
+    pub trigger_mod_dirs: Vec<String>,
 }
 
 /// Request payload for creating a new station.
@@ -191,4 +219,15 @@ pub struct BatchUpdateAudioFileRequest {
 pub struct BatchImportFailedFile {
     pub path: String,
     pub message: String,
+}
+
+/// An installed HOI4 Steam Workshop mod, as offered by the trigger sources UI.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkshopMod {
+    /// Steam Workshop published-file id (the directory name).
+    pub id: String,
+    /// Display name from `descriptor.mod`, falling back to the id.
+    pub name: String,
+    /// Absolute path to the mod root.
+    pub path: String,
 }

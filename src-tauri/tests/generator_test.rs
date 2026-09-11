@@ -21,6 +21,8 @@ fn generates_expected_mod_files() {
         tags: vec!["Sound".to_string(), "Music".to_string()],
         author: None,
         output_dir: output_dir.clone(),
+        load_vanilla_triggers: true,
+        trigger_mod_dirs: vec![],
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
@@ -190,6 +192,8 @@ fn only_includes_referenced_audio_files() {
         tags: vec!["Sound".to_string()],
         author: None,
         output_dir: output_dir.clone(),
+        load_vanilla_triggers: true,
+        trigger_mod_dirs: vec![],
         created_at: now,
         updated_at: now,
     };
@@ -281,6 +285,8 @@ fn stations_write_into_name_derived_subdirectories() {
         tags: vec!["Sound".to_string()],
         author: None,
         output_dir: output_dir.clone(),
+        load_vanilla_triggers: true,
+        trigger_mod_dirs: vec![],
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
@@ -381,6 +387,8 @@ fn colliding_station_names_get_distinct_directories() {
         tags: vec![],
         author: None,
         output_dir: output_dir.clone(),
+        load_vanilla_triggers: true,
+        trigger_mod_dirs: vec![],
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };

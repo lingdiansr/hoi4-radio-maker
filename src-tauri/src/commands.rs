@@ -247,6 +247,8 @@ pub fn update_project(
         tags: req.tags,
         author: req.author,
         output_dir: existing.output_dir,
+        load_vanilla_triggers: req.load_vanilla_triggers,
+        trigger_mod_dirs: req.trigger_mod_dirs,
     };
 
     db.update_project(&id, &req)
@@ -1145,16 +1147,62 @@ pub async fn validate_project_mod(
     state: State<'_, AppState>,
     project_id: String,
 ) -> Result<crate::validator::ValidationReport> {
-    let (output_dir, ffprobe_path) = {
+    let (output_dir, ffprobe_path, vocabulary) = {
         let db = lock_db(&state)?;
         let settings = crate::settings::Settings::get(&db)?;
         match db.get_project(&project_id)? {
-            Some(project) => (project.output_dir, settings.ffprobe_path),
+            Some(project) => {
+                let vocabulary = crate::scripts::build_vocabulary(
+                    project.load_vanilla_triggers,
+                    settings.hoi4_game_dir.as_deref().map(std::path::Path::new),
+                    &project
+                        .trigger_mod_dirs
+                        .iter()
+                        .map(std::path::PathBuf::from)
+                        .collect::<Vec<_>>(),
+                );
+                (project.output_dir, settings.ffprobe_path, vocabulary)
+            }
             None => return Err(Hoi4RadioError::ProjectNotFound { id: project_id }),
         }
     };
 
-    validate_mod_output(&output_dir, ffprobe_path.as_deref()).await
+    validate_mod_output(&output_dir, ffprobe_path.as_deref(), &vocabulary).await
+}
+
+/// List the HOI4 Steam Workshop mods available on this machine.
+#[tauri::command]
+pub fn list_workshop_mods(state: State<'_, AppState>) -> Result<Vec<crate::models::WorkshopMod>> {
+    let db = lock_db(&state)?;
+    let settings = Settings::get(&db)?;
+    let Some(game_dir) = settings.hoi4_game_dir else {
+        return Ok(Vec::new());
+    };
+    Ok(crate::scripts::find_workshop_mods(std::path::Path::new(
+        &game_dir,
+    )))
+}
+
+/// Return the trigger/tag/ideology vocabulary a project currently loads.
+#[tauri::command]
+pub fn project_script_vocabulary(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<crate::scripts::ScriptVocabulary> {
+    let db = lock_db(&state)?;
+    let settings = Settings::get(&db)?;
+    let project = db
+        .get_project(&project_id)?
+        .ok_or(Hoi4RadioError::ProjectNotFound { id: project_id })?;
+    Ok(crate::scripts::build_vocabulary(
+        project.load_vanilla_triggers,
+        settings.hoi4_game_dir.as_deref().map(std::path::Path::new),
+        &project
+            .trigger_mod_dirs
+            .iter()
+            .map(std::path::PathBuf::from)
+            .collect::<Vec<_>>(),
+    ))
 }
 
 #[tauri::command]

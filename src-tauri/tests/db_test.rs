@@ -80,7 +80,10 @@ fn migration_v2_to_v3_adds_subdir_and_preserves_rows() {
         .conn()
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 3, "migration must bump user_version to 3");
+    assert!(
+        version >= 3,
+        "migration must run at least the v2->v3 step, got user_version {version}"
+    );
 
     let (id, name, subdir): (String, String, Option<String>) = db
         .conn()
@@ -93,4 +96,48 @@ fn migration_v2_to_v3_adds_subdir_and_preserves_rows() {
     assert_eq!(id, "legacy_station");
     assert_eq!(name, "Legacy");
     assert!(subdir.is_none(), "legacy rows default to a NULL subdir");
+}
+
+/// A database at user_version 3 (projects without trigger-source columns) gains
+/// them on open and keeps its rows, defaulting to "load vanilla, no mods".
+#[test]
+fn migration_v3_to_v4_adds_trigger_sources_and_preserves_rows() {
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().join("app.db");
+
+    {
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "
+            CREATE TABLE projects (
+                id TEXT PRIMARY KEY, name TEXT NOT NULL, version TEXT NOT NULL,
+                supported_version TEXT NOT NULL, tags TEXT NOT NULL, author TEXT,
+                output_dir TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+            );
+            INSERT INTO projects (id, name, version, supported_version, tags, output_dir, created_at, updated_at)
+            VALUES ('legacy_proj', 'Legacy', '0.1.0', '*', '[]', '/tmp/legacy', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+            PRAGMA user_version = 3;
+            ",
+        )
+        .unwrap();
+    }
+
+    let db = Db::open(&path).unwrap();
+
+    let version: i32 = db
+        .conn()
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(version, 4, "migration must bump user_version to 4");
+
+    let project = db.get_project("legacy_proj").unwrap().expect("row kept");
+    assert_eq!(project.name, "Legacy");
+    assert!(
+        project.load_vanilla_triggers,
+        "existing projects default to loading vanilla triggers"
+    );
+    assert!(
+        project.trigger_mod_dirs.is_empty(),
+        "existing projects load no mod triggers"
+    );
 }

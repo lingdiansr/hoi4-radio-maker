@@ -164,12 +164,28 @@ export default {
   deleteConfirm: 'Delete station {name}?',
   deleteBody:
    'All song entries in this station are removed too, but the audio files stay in the global library.',
+  triggerName: 'Trigger name',
+  triggerNamePlaceholder: 'Pick from the loaded game/mod triggers',
+  triggerValue: 'Value',
+  triggerGeneric: 'Custom trigger',
   triggerWar: 'War state',
   triggerTag: 'Country tag',
   triggerIdeology: 'Ideology',
   triggerFaction: 'Same faction',
  },
- settings: {
+ triggers: {
+  sourcesTitle: 'Trigger vocabulary sources',
+  loadVanilla: 'Load vanilla game triggers',
+  loadVanillaHint:
+    'Reads the installed game’s built-in triggers and validity data (on by default). No effect without a HOI4 game directory.',
+  loadMods: 'Load mod triggers',
+  loadModsHint:
+    'Select any number of mods; their scripted triggers and script data load too (off by default).',
+  selectMods: 'Choose mods to load',
+  noMods:
+    'No mods found under the Steam Workshop directory (set a HOI4 game directory first).',
+},
+settings: {
   title: 'Settings',
   ffmpegPath: 'ffmpeg path',
   ffmpegPlaceholder: 'Choose the ffmpeg executable',

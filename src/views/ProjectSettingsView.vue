@@ -92,6 +92,46 @@
       </v-card-text>
     </v-card>
 
+    <!-- Trigger vocabulary sources -->
+    <v-card class="settings-card mt-6" variant="elevated" rounded="xl">
+      <v-card-title class="pa-6 pb-2">
+        <div class="text-mono text-caption text-secondary mb-1">TRIGGER SOURCES</div>
+        <div class="text-display text-h5">{{ $t('triggers.sourcesTitle') }}</div>
+      </v-card-title>
+
+      <v-divider opacity="0.2" />
+
+      <v-card-text class="pa-6">
+        <v-checkbox
+          :model-value="form.load_vanilla_triggers"
+          :label="$t('triggers.loadVanilla')"
+          hide-details
+          density="comfortable"
+          class="mb-2"
+          @update:model-value="(v) => (form.load_vanilla_triggers = !!v)"
+        />
+        <div class="text-caption text-secondary mb-4">
+          {{ $t('triggers.loadVanillaHint') }}
+        </div>
+
+        <v-select
+          :model-value="selectedModPaths"
+          :items="modOptions"
+          :label="$t('triggers.loadMods')"
+          :hint="modOptions.length ? $t('triggers.loadModsHint') : $t('triggers.noMods')"
+          :placeholder="$t('triggers.selectMods')"
+          multiple
+          chips
+          closable-chips
+          persistent-hint
+          item-title="title"
+          item-value="value"
+          prepend-inner-icon="mdi-puzzle-outline"
+          @update:model-value="onModSelection"
+        />
+      </v-card-text>
+    </v-card>
+
     <!-- Dirty change guard -->
     <v-dialog v-model="showDiscardDialog" max-width="460" class="bureau-dialog" persistent>
       <v-card class="dialog-card">
@@ -125,16 +165,27 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch, ref, computed, nextTick } from 'vue'
+import { reactive, watch, ref, computed, nextTick, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { useProjectStore, type UpdateProjectRequest } from '@/stores/project'
+import { useProjectStore, type UpdateProjectRequest, type WorkshopMod } from '@/stores/project'
 import { useCommand } from '@/composables/useCommand'
+import { invokeCommand } from '@/api/client'
+import { logger } from '@/utils/logger'
 
 const router = useRouter()
 const projectStore = useProjectStore()
 const { run } = useCommand()
 const { t } = useI18n()
+
+// Trigger vocabulary sources. The mod list comes from the installed Steam
+// Workshop; selection is stored on the project as mod roots.
+const workshopMods = ref<WorkshopMod[]>([])
+const selectedModPaths = ref<string[]>([])
+
+const modOptions = computed(() =>
+  workshopMods.value.map((m) => ({ title: m.name, value: m.path }))
+)
 
 const saving = ref(false)
 const isDirty = ref(false)
@@ -151,7 +202,24 @@ const form = reactive<UpdateProjectRequest>({
   tags: [],
   author: undefined,
   output_dir: '',
+  load_vanilla_triggers: true,
+  trigger_mod_dirs: [],
 })
+
+async function loadWorkshopMods() {
+  try {
+    workshopMods.value = await invokeCommand<WorkshopMod[]>('list_workshop_mods')
+  } catch (err) {
+    // A missing/custom Steam layout simply yields no mods to pick from.
+    logger.warn(`project settings: workshop mods unavailable: ${JSON.stringify(err)}`)
+    workshopMods.value = []
+  }
+}
+
+function onModSelection(paths: string[]) {
+  selectedModPaths.value = paths
+  form.trigger_mod_dirs = [...paths]
+}
 
 const authorInput = computed({
   get: () => form.author ?? '',
@@ -174,6 +242,9 @@ function syncFromProject() {
   form.tags = [...p.tags]
   form.author = p.author ?? undefined
   form.output_dir = p.output_dir
+  form.load_vanilla_triggers = p.load_vanilla_triggers
+  form.trigger_mod_dirs = [...p.trigger_mod_dirs]
+  selectedModPaths.value = [...p.trigger_mod_dirs]
   isDirty.value = false
   nextTick(() => {
     isSyncing.value = false
@@ -245,6 +316,8 @@ function cancelDiscard() {
     isReverting.value = false
   })
 }
+
+onMounted(loadWorkshopMods)
 
 </script>
 

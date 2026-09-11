@@ -11,6 +11,8 @@ fn test_project_has_id_and_name() {
         tags: vec!["Sound".into()],
         author: Some("Alice".into()),
         output_dir: PathBuf::from("/tmp/out"),
+        load_vanilla_triggers: true,
+        trigger_mod_dirs: vec![],
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
     };

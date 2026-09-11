@@ -68,6 +68,8 @@ impl Db {
                 tags TEXT NOT NULL,
                 author TEXT,
                 output_dir TEXT NOT NULL,
+                load_vanilla_triggers INTEGER NOT NULL DEFAULT 1,
+                trigger_mod_dirs TEXT NOT NULL DEFAULT '[]',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -157,6 +159,33 @@ impl Db {
             self.conn.execute("PRAGMA user_version = 3", [])?;
         }
 
+        // Migrate from version 3 to 4: per-project trigger vocabulary sources.
+        if user_version < 4 {
+            let has_flag: i32 = self.conn.query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('projects') WHERE name = 'load_vanilla_triggers'",
+                [],
+                |row| row.get(0),
+            )?;
+            if has_flag == 0 {
+                self.conn.execute(
+                    "ALTER TABLE projects ADD COLUMN load_vanilla_triggers INTEGER NOT NULL DEFAULT 1",
+                    [],
+                )?;
+            }
+            let has_dirs: i32 = self.conn.query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('projects') WHERE name = 'trigger_mod_dirs'",
+                [],
+                |row| row.get(0),
+            )?;
+            if has_dirs == 0 {
+                self.conn.execute(
+                    "ALTER TABLE projects ADD COLUMN trigger_mod_dirs TEXT NOT NULL DEFAULT '[]'",
+                    [],
+                )?;
+            }
+            self.conn.execute("PRAGMA user_version = 4", [])?;
+        }
+
         Ok(())
     }
 
@@ -188,8 +217,9 @@ impl Db {
         self.conn.execute(
             "INSERT INTO projects (
                 id, name, version, supported_version, tags, author,
-                output_dir, created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                output_dir, load_vanilla_triggers, trigger_mod_dirs,
+                created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 &id,
                 &req.name,
@@ -198,6 +228,8 @@ impl Db {
                 serde_json::to_string(&req.tags)?,
                 req.author.as_deref(),
                 req.output_dir.to_string_lossy(),
+                true,
+                "[]",
                 now.to_rfc3339(),
                 now.to_rfc3339(),
             ],
@@ -211,6 +243,8 @@ impl Db {
             tags: req.tags.clone(),
             author: req.author.clone(),
             output_dir: req.output_dir.clone(),
+            load_vanilla_triggers: true,
+            trigger_mod_dirs: vec![],
             created_at: now,
             updated_at: now,
         })
@@ -220,7 +254,8 @@ impl Db {
     pub fn get_project(&self, id: &str) -> Result<Option<Project>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, name, version, supported_version, tags, author,
-                    output_dir, created_at, updated_at
+                    output_dir, load_vanilla_triggers, trigger_mod_dirs,
+                    created_at, updated_at
              FROM projects
              WHERE id = ?1",
         )?;
@@ -244,8 +279,10 @@ impl Db {
                  tags = ?4,
                  author = ?5,
                  output_dir = ?6,
-                 updated_at = ?7
-             WHERE id = ?8",
+                 load_vanilla_triggers = ?7,
+                 trigger_mod_dirs = ?8,
+                 updated_at = ?9
+             WHERE id = ?10",
             params![
                 &req.name,
                 &req.version,
@@ -253,6 +290,8 @@ impl Db {
                 serde_json::to_string(&req.tags)?,
                 req.author.as_deref(),
                 req.output_dir.to_string_lossy(),
+                req.load_vanilla_triggers,
+                serde_json::to_string(&req.trigger_mod_dirs)?,
                 now.to_rfc3339(),
                 id,
             ],
@@ -271,7 +310,8 @@ impl Db {
     pub fn list_projects(&self) -> Result<Vec<Project>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, name, version, supported_version, tags, author,
-                    output_dir, created_at, updated_at
+                    output_dir, load_vanilla_triggers, trigger_mod_dirs,
+                    created_at, updated_at
              FROM projects
              ORDER BY created_at DESC",
         )?;
@@ -664,6 +704,8 @@ fn project_from_row(row: &rusqlite::Row) -> Result<Project> {
             })
     };
 
+    let trigger_mod_dirs_json: String = row.get("trigger_mod_dirs")?;
+
     Ok(Project {
         id: row.get("id")?,
         name: row.get("name")?,
@@ -672,6 +714,8 @@ fn project_from_row(row: &rusqlite::Row) -> Result<Project> {
         tags: serde_json::from_str(&tags_json)?,
         author: row.get("author")?,
         output_dir: PathBuf::from(row.get::<_, String>("output_dir")?),
+        load_vanilla_triggers: row.get::<_, i64>("load_vanilla_triggers")? != 0,
+        trigger_mod_dirs: serde_json::from_str(&trigger_mod_dirs_json).unwrap_or_default(),
         created_at: parse_dt(&created_at_str)?,
         updated_at: parse_dt(&updated_at_str)?,
     })

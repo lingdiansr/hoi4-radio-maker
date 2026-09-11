@@ -18,11 +18,13 @@ pub struct ValidationReport {
 ///
 /// Checks that required directories exist, that every OGG file referenced in
 /// `.asset` files exists and is decodable, that `.asset` and `.txt` files are
-/// consistent, that every song has a localization key, and that station/song
-/// identifiers only contain ASCII letters, digits, and underscores.
+/// consistent, that every song has a localization key, that station/song
+/// identifiers only contain ASCII letters, digits, and underscores, and that
+/// the triggers written into `.txt` exist in the loaded game/mod vocabulary.
 pub async fn validate_mod_output(
     output_dir: &Path,
     ffprobe_path: Option<&str>,
+    vocabulary: &crate::scripts::ScriptVocabulary,
 ) -> Result<ValidationReport> {
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
@@ -47,11 +49,17 @@ pub async fn validate_mod_output(
     let file_re = Regex::new(r#"file\s*=\s*"([^"]+)""#).expect("file regex is valid");
     let station_re =
         Regex::new(r#"music_station\s*=\s*"([^"]+)""#).expect("station regex is valid");
+    let assignment_re =
+        Regex::new(r#"(\w+)\s*=\s*([A-Za-z0-9_]+)"#).expect("assignment regex is valid");
 
     let mut asset_names: HashSet<String> = HashSet::new();
     let mut referenced_ogg_files: HashSet<PathBuf> = HashSet::new();
     let mut songs: HashSet<String> = HashSet::new();
     let mut station_ids: HashSet<String> = HashSet::new();
+    // `name = value` pairs found inside `.txt` files, checked against the
+    // loaded game/mod trigger vocabulary. Keys like `music`/`song`/`factor`
+    // are filtered out before validation.
+    let mut txt_assignments: Vec<(String, String, PathBuf)> = Vec::new();
 
     if music_dir.is_dir() {
         // Collect music/ plus every nested subdirectory (stations may be
@@ -107,6 +115,13 @@ pub async fn validate_mod_output(
                     for cap in song_re.captures_iter(&content) {
                         songs.insert(cap[1].to_string());
                     }
+                    for cap in assignment_re.captures_iter(&content) {
+                        txt_assignments.push((
+                            cap[1].to_string(),
+                            cap[2].to_string(),
+                            path.clone(),
+                        ));
+                    }
                 }
             }
         }
@@ -143,6 +158,48 @@ pub async fn validate_mod_output(
                 errors.push(format!(
                     "Invalid station ID '{}': must contain only ASCII letters, digits, and underscores",
                     station_id
+                ));
+            }
+        }
+    }
+
+    // 6. Trigger validation. Only runs when the project loaded a vocabulary;
+    // without one (no game directory configured) the check is skipped rather
+    // than reported as a failure.
+    if !vocabulary.is_empty() {
+        for (key, value, path) in &txt_assignments {
+            if STRUCTURAL_KEYS.contains(&key.as_str()) {
+                continue;
+            }
+            if !vocabulary.triggers.contains_key(key) {
+                warnings.push(format!(
+                    "Unknown trigger '{}' in {}: not found in the loaded game/mod vocabulary",
+                    key,
+                    path.display()
+                ));
+                continue;
+            }
+            // Values that take a definition from the game data are checked so a
+            // mistyped tag/ideology is caught instead of silently doing nothing.
+            if matches!(key.as_str(), "tag" | "is_in_faction_with")
+                && !vocabulary.country_tags.is_empty()
+                && !vocabulary.country_tags.contains(value)
+            {
+                warnings.push(format!(
+                    "Unknown country tag '{}' for '{}' in {}",
+                    value,
+                    key,
+                    path.display()
+                ));
+            }
+            if key == "has_government"
+                && !vocabulary.ideologies.is_empty()
+                && !vocabulary.ideologies.contains(value)
+            {
+                warnings.push(format!(
+                    "Unknown ideology '{}' for 'has_government' in {}",
+                    value,
+                    path.display()
                 ));
             }
         }
@@ -209,6 +266,19 @@ pub async fn validate_mod_output(
         ogg_files_checked,
     })
 }
+
+/// Assignment keys in `.txt` files that are structure, not triggers: the
+/// surrounding `music = { … }` blocks and their chance fields.
+const STRUCTURAL_KEYS: &[&str] = &[
+    "music",
+    "music_station",
+    "song",
+    "chance",
+    "factor",
+    "add",
+    "base",
+    "modifier",
+];
 
 fn is_valid_id(id: &str) -> bool {
     !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
@@ -287,6 +357,7 @@ mod tests {
             .block_on(validate_mod_output(
                 tmp.path(),
                 Some(fake_ffprobe.to_str().unwrap()),
+                &Default::default(),
             ))
             .unwrap();
 

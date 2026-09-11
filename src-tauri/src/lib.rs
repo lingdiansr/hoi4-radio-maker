@@ -8,6 +8,7 @@ pub mod generator;
 pub mod hoi4_version;
 pub mod models;
 pub mod naming;
+pub mod scripts;
 pub mod settings;
 pub mod station;
 pub mod validator;
@@ -96,6 +97,8 @@ pub fn run() {
             commands::reorder_station_entries,
             commands::generate_project_mod,
             commands::validate_project_mod,
+            commands::list_workshop_mods,
+            commands::project_script_vocabulary,
             commands::get_settings,
             commands::save_settings,
             commands::get_default_library_dir,

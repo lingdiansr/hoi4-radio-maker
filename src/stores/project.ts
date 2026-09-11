@@ -10,6 +10,17 @@ export interface Project {
   tags: string[];
   author?: string;
   output_dir: string;
+  /** Whether the installed game's built-in trigger vocabulary is loaded. */
+  load_vanilla_triggers: boolean;
+  /** Mod roots whose triggers/tags/ideologies are also loaded. */
+  trigger_mod_dirs: string[];
+}
+
+/** An installed Steam Workshop mod offered as a trigger source. */
+export interface WorkshopMod {
+  id: string;
+  name: string;
+  path: string;
 }
 
 export interface CreateProjectRequest {
@@ -28,6 +39,8 @@ export interface UpdateProjectRequest {
   tags: string[];
   author?: string;
   output_dir: string;
+  load_vanilla_triggers: boolean;
+  trigger_mod_dirs: string[];
 }
 
 export const useProjectStore = defineStore("project", () => {

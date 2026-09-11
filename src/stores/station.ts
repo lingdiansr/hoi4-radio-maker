@@ -4,13 +4,15 @@ import { invokeCommand } from '@/api/client'
 import { useProjectStore } from '@/stores/project'
 import { logger } from '@/utils/logger'
 
-export type TriggerType = 'has_war' | 'tag' | 'has_government' | 'is_in_faction'
+export type TriggerType = 'has_war' | 'tag' | 'has_government' | 'is_in_faction' | 'generic'
 
 export interface Trigger {
   type: TriggerType
   value?: boolean | string
   ideology?: string
   tag?: string
+  /** Trigger name for `type: 'generic'`, taken from the loaded vocabulary. */
+  name?: string
 }
 
 export interface Modifier {
@@ -30,6 +32,19 @@ export interface StationEntry {
   chance: ChanceConfig
 }
 
+/** A trigger documented by the loaded game/mod vocabulary. */
+export interface TriggerDef {
+  name: string
+  scopes: string[]
+}
+
+/** Trigger/tag/ideology vocabulary a project loads from the game and its mods. */
+export interface ScriptVocabulary {
+  triggers: Record<string, TriggerDef>
+  country_tags: string[]
+  ideologies: string[]
+}
+
 export interface Station {
   id: string
   name: string
@@ -39,7 +54,16 @@ export interface Station {
 
 export const useStationStore = defineStore('station', () => {
   const stations = ref<Station[]>([])
+  const vocabulary = ref<ScriptVocabulary | null>(null)
   const projectStore = useProjectStore()
+
+  /** Load the project's trigger vocabulary; empty when nothing is configured. */
+  async function loadVocabulary() {
+    if (!projectStore.currentProject) return
+    vocabulary.value = await invokeCommand<ScriptVocabulary>('project_script_vocabulary', {
+      projectId: projectStore.currentProject.id,
+    })
+  }
 
   async function loadStations() {
     if (!projectStore.currentProject) return
@@ -138,6 +162,8 @@ export const useStationStore = defineStore('station', () => {
 
   return {
     stations,
+    vocabulary,
+    loadVocabulary,
     loadStations,
     createStation,
     renameStation,

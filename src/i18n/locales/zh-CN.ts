@@ -159,12 +159,26 @@ export default {
   deleteTitle: '删除电台',
   deleteConfirm: '确定要删除电台 {name} 吗？',
   deleteBody: '电台内的所有歌曲条目也将被删除，但音频文件仍会保留在全局音频库中。',
+  triggerName: 'trigger 名称',
+  triggerNamePlaceholder: '从已加载的游戏/模组中选择',
+  triggerValue: '取值',
+  triggerGeneric: '自定义 trigger',
   triggerWar: '战争状态',
   triggerTag: '国家标签',
   triggerIdeology: '意识形态',
   triggerFaction: '同阵营国家',
  },
- settings: {
+ triggers: {
+  sourcesTitle: 'Trigger 词表来源',
+  loadVanilla: '加载原版游戏 trigger',
+  loadVanillaHint:
+    '从已安装的游戏读取内置 trigger 与合法性数据（默认开启）。未配置 HOI4 游戏目录时此项无效。',
+  loadMods: '加载模组 trigger',
+  loadModsHint: '可多选；所选模组的 scripted trigger 与脚本数据会一并加载（默认不加载）。',
+  selectMods: '选择要加载的模组',
+  noMods: '未在 Steam 创意工坊目录中找到模组（需先配置 HOI4 游戏目录）。',
+},
+settings: {
   title: '全局设置',
   ffmpegPath: 'ffmpeg 路径',
   ffmpegPlaceholder: '选择 ffmpeg 可执行文件',
