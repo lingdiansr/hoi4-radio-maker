@@ -312,11 +312,7 @@ music = {
 "#,
     )
     .unwrap();
-    std::fs::write(
-        output_dir.join("descriptor.mod"),
-        "name=\"Trig\"\n",
-    )
-    .unwrap();
+    std::fs::write(output_dir.join("descriptor.mod"), "name=\"Trig\"\n").unwrap();
     let loc_dir = output_dir.join("localisation").join("simp_chinese");
     std::fs::create_dir_all(&loc_dir).unwrap();
     std::fs::write(
@@ -387,9 +383,11 @@ music = {
         .await
         .expect("validate failed");
     assert!(
-        !report.warnings.iter().any(|w| w.contains("Unknown trigger")),
+        !report
+            .warnings
+            .iter()
+            .any(|w| w.contains("Unknown trigger")),
         "empty vocabulary must skip the check, got: {:?}",
         report.warnings
     );
-
 }

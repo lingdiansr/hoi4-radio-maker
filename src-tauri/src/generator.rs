@@ -299,7 +299,10 @@ mod tests {
         assert_eq!(line("has_war", "yes"), "has_war = yes");
         assert_eq!(line("original_tag", "NOR"), "original_tag = NOR");
         // Free text that would break the token is quoted and escaped.
-        assert_eq!(line("has_country_flag", "my flag"), "has_country_flag = \"my flag\"");
+        assert_eq!(
+            line("has_country_flag", "my flag"),
+            "has_country_flag = \"my flag\""
+        );
         assert_eq!(line("a_flag", "say \"hi\""), "a_flag = \"say \\\"hi\\\"\"");
     }
 

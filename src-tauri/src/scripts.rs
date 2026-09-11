@@ -422,9 +422,7 @@ fn classify_value(value: &[u8]) -> Option<ValueKind> {
     for (i, b) in value.iter().enumerate() {
         if b.is_ascii_digit() {
             digit = true;
-        } else if matches!(b, b'-' | b'+' | b'.')
-            && (i == 0 || value[i - 1].is_ascii_digit())
-        {
+        } else if matches!(b, b'-' | b'+' | b'.') && (i == 0 || value[i - 1].is_ascii_digit()) {
             // sign or decimal point in a numeric token
         } else {
             return Some(ValueKind::Text);
@@ -552,7 +550,8 @@ impl KindSamples {
         }
         let mut best = 0usize;
         for (i, count) in self.counts.iter().enumerate() {
-            if *count > self.counts[best] || (*count == self.counts[best] && i > best && *count > 0) {
+            if *count > self.counts[best] || (*count == self.counts[best] && i > best && *count > 0)
+            {
                 best = i;
             }
         }
@@ -564,7 +563,11 @@ impl KindSamples {
     }
 }
 
-pub fn script_roots(load_vanilla: bool, game_dir: Option<&Path>, mod_dirs: &[PathBuf]) -> Vec<PathBuf> {
+pub fn script_roots(
+    load_vanilla: bool,
+    game_dir: Option<&Path>,
+    mod_dirs: &[PathBuf],
+) -> Vec<PathBuf> {
     let mut roots = Vec::new();
     if load_vanilla {
         if let Some(g) = game_dir {
@@ -736,7 +739,10 @@ ideologies = {
         let text = "ideologies = {\r\n\r\n\ttotalitarian_socialist = { #社\r\n\t\ttypes = {\r\n\t\t\tjucheism = {\r\n\t\t\t}\r\n\t\t}\r\n\t}\r\n\tcommunist = {\r\n\t}\r\n}\r\n";
         assert_eq!(
             parse_ideologies(text),
-            vec!["totalitarian_socialist".to_string(), "communist".to_string()]
+            vec![
+                "totalitarian_socialist".to_string(),
+                "communist".to_string()
+            ]
         );
     }
 

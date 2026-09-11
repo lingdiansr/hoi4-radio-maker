@@ -1385,8 +1385,7 @@ mod tests {
                 game_dir: None,
                 mod_dirs: vec![dir.path().to_string_lossy().to_string()],
             };
-            let index =
-                super::trigger_index_for(&cache, key, &[dir.path().to_path_buf()]).unwrap();
+            let index = super::trigger_index_for(&cache, key, &[dir.path().to_path_buf()]).unwrap();
             let expected = if *load_vanilla {
                 crate::scripts::ValueKind::Boolean
             } else {
