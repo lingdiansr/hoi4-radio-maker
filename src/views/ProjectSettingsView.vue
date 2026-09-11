@@ -115,20 +115,24 @@
         </div>
 
         <v-select
-          :model-value="selectedModPaths"
+          v-model="form.trigger_mod_dirs"
           :items="modOptions"
           :label="$t('triggers.loadMods')"
-          :hint="modOptions.length ? $t('triggers.loadModsHint') : $t('triggers.noMods')"
           :placeholder="$t('triggers.selectMods')"
           multiple
           chips
           closable-chips
-          persistent-hint
           item-title="title"
           item-value="value"
           prepend-inner-icon="mdi-puzzle-outline"
-          @update:model-value="onModSelection"
         />
+        <div class="text-caption text-secondary mt-2">
+          <template v-if="modOptions.length">{{ $t('triggers.loadModsHint') }}</template>
+          <template v-else-if="form.trigger_mod_dirs.length">
+            {{ $t('triggers.modsUnavailable', { count: form.trigger_mod_dirs.length }) }}
+          </template>
+          <template v-else>{{ $t('triggers.noMods') }}</template>
+        </div>
       </v-card-text>
     </v-card>
 
@@ -180,9 +184,8 @@ const toast = useToastStore()
 const { t } = useI18n()
 
 // Trigger vocabulary sources. The mod list comes from the installed Steam
-// Workshop; selection is stored on the project as mod roots.
+// Workshop; the selection lives on `form.trigger_mod_dirs` (bound with v-model).
 const workshopMods = ref<WorkshopMod[]>([])
-const selectedModPaths = ref<string[]>([])
 
 const modOptions = computed(() =>
   workshopMods.value.map((m) => ({ title: m.name, value: m.path }))
@@ -217,11 +220,6 @@ async function loadWorkshopMods() {
   }
 }
 
-function onModSelection(paths: string[]) {
-  selectedModPaths.value = paths
-  form.trigger_mod_dirs = [...paths]
-}
-
 const authorInput = computed({
   get: () => form.author ?? '',
   set: (v: string) => {
@@ -245,7 +243,6 @@ function syncFromProject() {
   form.output_dir = p.output_dir
   form.load_vanilla_triggers = p.load_vanilla_triggers
   form.trigger_mod_dirs = [...p.trigger_mod_dirs]
-  selectedModPaths.value = [...p.trigger_mod_dirs]
   isDirty.value = false
   nextTick(() => {
     isSyncing.value = false

@@ -181,6 +181,7 @@ export default {
   loadModsHint: '可多选；所选模组的 scripted trigger 与脚本数据会一并加载（默认不加载）。',
   selectMods: '选择要加载的模组',
   noMods: '未在 Steam 创意工坊目录中找到模组（需先配置 HOI4 游戏目录）。',
+  modsUnavailable: '已保存 {count} 个模组来源，但未能列出创意工坊目录（请检查 HOI4 游戏目录设置）。',
 },
 settings: {
   title: '全局设置',

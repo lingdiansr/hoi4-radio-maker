@@ -188,6 +188,8 @@ export default {
   selectMods: 'Choose mods to load',
   noMods:
     'No mods found under the Steam Workshop directory (set a HOI4 game directory first).',
+  modsUnavailable:
+    '{count} mod source(s) saved, but the Workshop directory could not be listed (check the HOI4 game directory setting).',
 },
 settings: {
   title: 'Settings',
