@@ -11,7 +11,7 @@
 //! * `common/country_tags/*.txt` and `common/ideologies/*.txt` — the values
 //!   `tag` / `is_in_faction_with` / `has_government` take.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
 use crate::models::WorkshopMod;
@@ -280,22 +280,11 @@ fn vocabulary_from_root(root: &Path) -> ScriptVocabulary {
 /// `load_vanilla` pulls in the installed game's documentation; `mod_dirs` adds
 /// each selected mod on top. Everything is best-effort: a missing game
 /// directory or unreadable mod yields whatever could be read, never an error.
-pub fn build_vocabulary(
-    load_vanilla: bool,
-    game_dir: Option<&Path>,
-    mod_dirs: &[PathBuf],
-) -> ScriptVocabulary {
+pub fn build_vocabulary(roots: &[PathBuf]) -> ScriptVocabulary {
     let mut vocab = ScriptVocabulary::default();
-
-    if load_vanilla {
-        if let Some(root) = game_dir {
-            vocab.absorb(vocabulary_from_root(root));
-        }
+    for root in roots {
+        vocab.absorb(vocabulary_from_root(root));
     }
-    for dir in mod_dirs {
-        vocab.absorb(vocabulary_from_root(dir));
-    }
-
     vocab
 }
 
@@ -448,80 +437,133 @@ fn classify_value(value: &[u8]) -> Option<ValueKind> {
     }
 }
 
-/// Infer the value kind a trigger takes, from how the game and the selected
-/// mods actually use it.
-///
-/// The documentation states scopes and targets but not value types, and
-/// `Supported Targets` does not predict them (`stockpile_ratio` is documented
-/// as `none` yet takes a number). Usage is therefore the only reliable signal.
-/// The scan stops as soon as [`KIND_SAMPLE`] observations are gathered, so
-/// common triggers resolve in milliseconds; a trigger that is never used (or
-/// only rarely) falls back to the documented suggestions.
-pub fn lookup_value_kind(roots: &[PathBuf], name: &str) -> Option<ValueKind> {
-    if name.is_empty() {
+/// Read one script line as an assignment, yielding its key and the kind of its
+/// value. Returns `None` for anything that is not a single-valued assignment:
+/// blank lines, nested blocks, comments, and keys that cannot be triggers.
+fn parse_assignment(raw: &[u8]) -> Option<(&[u8], ValueKind)> {
+    let line = trim_bytes(raw);
+    // Values are often followed by a comment (`= yes # note`), which would
+    // otherwise make the token look like free text.
+    let line = match line.iter().position(|b| *b == b'#') {
+        Some(i) => trim_bytes(&line[..i]),
+        None => line,
+    };
+    // Cheap pre-filter: script keys start with a lowercase letter.
+    let (first, _) = line.split_first()?;
+    if !first.is_ascii_lowercase() {
         return None;
     }
-    let target = name.as_bytes();
+    let eq = line.iter().position(|b| *b == b'=')?;
+    let key = trim_bytes(&line[..eq]);
+    if key.is_empty() {
+        return None;
+    }
+    let mut value = trim_bytes(&line[eq + 1..]);
+    if value.len() >= 2 && value[0] == b'"' && value[value.len() - 1] == b'"' {
+        value = &value[1..value.len() - 1];
+    }
+    Some((key, classify_value(value)?))
+}
 
-    let mut counts = [0u32; 3];
-    let mut seen = 0u32;
+/// The value kind of every trigger the loaded scripts assign, built in one pass
+/// over the game and mod scripts.
+///
+/// Answering "what does this trigger take?" by scanning for one name at a time
+/// costs a full read of the corpus per name — 120 MB across 10k files, measured
+/// at 2.9s in a debug build, and paid again for the next name. Building the map
+/// once costs a single pass and then answers every name from memory.
+///
+/// Keys are gathered as bytes: they are ASCII identifiers, so this avoids a
+/// UTF-8 check and an allocation per line.
+pub struct ValueKindIndex {
+    kinds: HashMap<Vec<u8>, ValueKind>,
+}
 
-    'roots: for root in roots {
-        for file in collect_script_files(root) {
-            let Ok(data) = std::fs::read(&file) else {
-                continue;
-            };
-            for raw in data.split(|b| *b == b'\n') {
-                let line = trim_bytes(raw);
-                // Values are often followed by a comment (`= yes # note`), which
-                // would otherwise make the token look like free text.
-                let line = match line.iter().position(|b| *b == b'#') {
-                    Some(i) => trim_bytes(&line[..i]),
-                    None => line,
-                };
-                // Cheap pre-filter: script keys start with a lowercase letter.
-                let Some((first, _)) = line.split_first() else {
+impl ValueKindIndex {
+    /// Scan every script file below `roots` and classify each assignment.
+    pub fn build(roots: &[PathBuf]) -> Self {
+        let mut samples: HashMap<Vec<u8>, KindSamples> = HashMap::new();
+
+        for root in roots {
+            for file in collect_script_files(root) {
+                let Ok(data) = std::fs::read(&file) else {
                     continue;
                 };
-                if !first.is_ascii_lowercase() {
-                    continue;
-                }
-                let Some(eq) = line.iter().position(|b| *b == b'=') else {
-                    continue;
-                };
-                if trim_bytes(&line[..eq]) != target {
-                    continue;
-                }
-                let mut value = trim_bytes(&line[eq + 1..]);
-                if value.len() >= 2 && value[0] == b'"' && value[value.len() - 1] == b'"' {
-                    value = &value[1..value.len() - 1];
-                }
-                if let Some(kind) = classify_value(value) {
-                    counts[kind as usize] += 1;
-                    seen += 1;
-                    if seen >= KIND_SAMPLE {
-                        break 'roots;
+                for raw in data.split(|b| *b == b'\n') {
+                    let Some((key, kind)) = parse_assignment(raw) else {
+                        continue;
+                    };
+                    match samples.get_mut(key) {
+                        Some(entry) => entry.push(kind),
+                        None => {
+                            let mut entry = KindSamples::default();
+                            entry.push(kind);
+                            samples.insert(key.to_vec(), entry);
+                        }
                     }
                 }
             }
         }
+
+        let kinds = samples
+            .into_iter()
+            .filter_map(|(key, entry)| entry.conclude().map(|kind| (key, kind)))
+            .collect();
+
+        Self { kinds }
     }
 
-    if seen == 0 {
-        return None;
+    /// The kind of `name`, or `None` when the scripts only ever write it as a
+    /// block (or never mention it at all).
+    pub fn get(&self, name: &str) -> Option<ValueKind> {
+        self.kinds.get(name.as_bytes()).copied()
     }
-    // Majority wins; ties favour the more permissive text kind.
-    let order = [ValueKind::Boolean, ValueKind::Number, ValueKind::Text];
-    let mut best = 0usize;
-    for (i, count) in counts.iter().enumerate() {
-        if *count > counts[best] || (*count == counts[best] && i > best && *count > 0) {
-            best = i;
-        }
+
+    /// Number of triggers with a known kind.
+    pub fn len(&self) -> usize {
+        self.kinds.len()
     }
-    Some(order[best])
+
+    pub fn is_empty(&self) -> bool {
+        self.kinds.is_empty()
+    }
 }
 
-/// The script roots a project loads: the game (when enabled) plus its mods.
+/// Observations gathered for one key, capped at [`KIND_SAMPLE`].
+#[derive(Default)]
+struct KindSamples {
+    counts: [u32; 3],
+    seen: u32,
+}
+
+impl KindSamples {
+    fn push(&mut self, kind: ValueKind) {
+        if self.seen >= KIND_SAMPLE {
+            return;
+        }
+        self.counts[kind as usize] += 1;
+        self.seen += 1;
+    }
+
+    /// Majority wins; ties favour the more permissive text kind.
+    fn conclude(&self) -> Option<ValueKind> {
+        if self.seen == 0 {
+            return None;
+        }
+        let mut best = 0usize;
+        for (i, count) in self.counts.iter().enumerate() {
+            if *count > self.counts[best] || (*count == self.counts[best] && i > best && *count > 0) {
+                best = i;
+            }
+        }
+        match best {
+            0 => Some(ValueKind::Boolean),
+            1 => Some(ValueKind::Number),
+            _ => Some(ValueKind::Text),
+        }
+    }
+}
+
 pub fn script_roots(load_vanilla: bool, game_dir: Option<&Path>, mod_dirs: &[PathBuf]) -> Vec<PathBuf> {
     let mut roots = Vec::new();
     if load_vanilla {
@@ -658,22 +700,13 @@ ideologies = {
         std::fs::write(common.join("usage.txt"), body).unwrap();
 
         let roots = vec![tmp.path().to_path_buf()];
-        assert_eq!(
-            lookup_value_kind(&roots, "has_war"),
-            Some(ValueKind::Boolean)
-        );
-        assert_eq!(
-            lookup_value_kind(&roots, "stockpile_ratio"),
-            Some(ValueKind::Number)
-        );
-        assert_eq!(
-            lookup_value_kind(&roots, "original_tag"),
-            Some(ValueKind::Text)
-        );
+        let index = ValueKindIndex::build(&roots);
+        assert_eq!(index.get("has_war"), Some(ValueKind::Boolean));
+        assert_eq!(index.get("stockpile_ratio"), Some(ValueKind::Number));
+        assert_eq!(index.get("original_tag"), Some(ValueKind::Text));
         // A trigger the scripts never use has no inferred kind.
-        assert_eq!(lookup_value_kind(&roots, "never_used_trigger"), None);
-        // Nested directories are scanned too.
-        assert_eq!(lookup_value_kind(&roots, ""), None);
+        assert_eq!(index.get("never_used_trigger"), None);
+        assert_eq!(index.get(""), None);
     }
 
     #[test]
@@ -731,15 +764,13 @@ ideologies = {
             body.push_str(&format!("has_war = yes # note {i}\r\n"));
         }
         std::fs::write(common.join("usage.txt"), body).unwrap();
-        assert_eq!(
-            lookup_value_kind(&[tmp.path().to_path_buf()], "has_war"),
-            Some(ValueKind::Boolean)
-        );
+        let index = ValueKindIndex::build(&[tmp.path().to_path_buf()]);
+        assert_eq!(index.get("has_war"), Some(ValueKind::Boolean));
     }
 
     #[test]
     fn missing_roots_yield_an_empty_vocabulary() {
-        let vocab = build_vocabulary(true, Some(Path::new("/nonexistent/game")), &[]);
+        let vocab = build_vocabulary(&[PathBuf::from("/nonexistent/game")]);
         assert!(vocab.is_empty());
     }
 }

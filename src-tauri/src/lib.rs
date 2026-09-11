@@ -69,6 +69,7 @@ pub fn run() {
             db: Mutex::new(db),
             cancel_import: Arc::new(AtomicBool::new(false)),
             active_transcodes: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            trigger_index: Arc::new(Mutex::new(None)),
         })
         .invoke_handler(tauri::generate_handler![
             commands::create_project,

@@ -8,6 +8,7 @@ use crate::models::{
     CreateProjectRequest, ImportStatus, Project, UpdateAudioFileRequest, UpdateProjectRequest,
 };
 use crate::naming::slugify_id;
+use crate::scripts::{script_roots, ValueKind, ValueKindIndex};
 use crate::settings::{Settings, SettingsResponse};
 use crate::station::StationRepository;
 use crate::validator::validate_mod_output;
@@ -21,11 +22,92 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::{watch, Mutex as AsyncMutex};
 use uuid::Uuid;
 
+/// The trigger source set a cached value-kind index was built from. A different
+/// set — another project, or changed settings — invalidates the cache.
+#[derive(Clone, PartialEq, Eq)]
+pub struct TriggerSourceKey {
+    load_vanilla: bool,
+    game_dir: Option<String>,
+    mod_dirs: Vec<String>,
+}
+
+/// Lazily built value-kind index, shared so the scan can run off the UI thread.
+/// `Arc` so a background build can be handed to another thread; the mutex is
+/// held across a build to keep concurrent asks from repeating the same scan.
+pub type TriggerIndexCache = Arc<Mutex<Option<(TriggerSourceKey, Arc<ValueKindIndex>)>>>;
+
 /// Shared application state exposed to Tauri commands.
 pub struct AppState {
     pub db: Mutex<Db>,
     pub cancel_import: Arc<AtomicBool>,
     pub active_transcodes: Arc<AsyncMutex<HashMap<String, watch::Sender<bool>>>>,
+    pub trigger_index: TriggerIndexCache,
+}
+
+/// Script roots for an already-loaded project and its settings.
+fn project_roots(project: &Project, settings: &Settings) -> Vec<PathBuf> {
+    script_roots(
+        project.load_vanilla_triggers,
+        settings.hoi4_game_dir.as_deref().map(Path::new),
+        &project
+            .trigger_mod_dirs
+            .iter()
+            .map(PathBuf::from)
+            .collect::<Vec<_>>(),
+    )
+}
+
+/// The trigger source set a project loads, plus the roots to scan for it.
+fn project_trigger_sources(
+    state: &AppState,
+    project_id: &str,
+) -> Result<(TriggerSourceKey, Vec<PathBuf>)> {
+    let (load_vanilla, game_dir, mod_dirs) = {
+        let db = lock_db(state)?;
+        let settings = Settings::get(&db)?;
+        let project =
+            db.get_project(project_id)?
+                .ok_or_else(|| Hoi4RadioError::ProjectNotFound {
+                    id: project_id.to_string(),
+                })?;
+        (
+            project.load_vanilla_triggers,
+            settings.hoi4_game_dir,
+            project.trigger_mod_dirs,
+        )
+    };
+
+    let key = TriggerSourceKey {
+        load_vanilla,
+        game_dir,
+        mod_dirs,
+    };
+    let roots = script_roots(
+        key.load_vanilla,
+        key.game_dir.as_deref().map(Path::new),
+        &key.mod_dirs.iter().map(PathBuf::from).collect::<Vec<_>>(),
+    );
+    Ok((key, roots))
+}
+
+/// The value-kind index for a source set, scanning for it on first use.
+fn trigger_index_for(
+    cache: &TriggerIndexCache,
+    key: TriggerSourceKey,
+    roots: &[PathBuf],
+) -> Result<Arc<ValueKindIndex>> {
+    let mut guard = cache.lock().map_err(|e| Hoi4RadioError::Other {
+        message: format!("trigger index lock poisoned: {e}"),
+    })?;
+    if let Some((cached_key, index)) = guard.as_ref() {
+        if *cached_key == key {
+            return Ok(Arc::clone(index));
+        }
+    }
+    let index = Arc::new(ValueKindIndex::build(roots));
+    tracing::debug!("built trigger value-kind index: {} names", index.len());
+    *guard = Some((key, Arc::clone(&index)));
+    Ok(index)
 }
 
 fn lock_db(state: &AppState) -> Result<std::sync::MutexGuard<'_, Db>> {
@@ -1152,15 +1234,8 @@ pub async fn validate_project_mod(
         let settings = crate::settings::Settings::get(&db)?;
         match db.get_project(&project_id)? {
             Some(project) => {
-                let vocabulary = crate::scripts::build_vocabulary(
-                    project.load_vanilla_triggers,
-                    settings.hoi4_game_dir.as_deref().map(std::path::Path::new),
-                    &project
-                        .trigger_mod_dirs
-                        .iter()
-                        .map(std::path::PathBuf::from)
-                        .collect::<Vec<_>>(),
-                );
+                let vocabulary =
+                    crate::scripts::build_vocabulary(&project_roots(&project, &settings));
                 (project.output_dir, settings.ffprobe_path, vocabulary)
             }
             None => return Err(Hoi4RadioError::ProjectNotFound { id: project_id }),
@@ -1183,36 +1258,31 @@ pub fn list_workshop_mods(state: State<'_, AppState>) -> Result<Vec<crate::model
     )))
 }
 
-/// Infer the value kind a trigger takes, from the game/mod scripts of a project.
-///
-/// Advisory and on-demand: the scan stops once it has seen enough examples, so
-/// the editor can hint "number" / "boolean" / "free text" without paying for a
-/// full corpus pass.
+/// The kind of value a trigger takes, inferred from how the loaded scripts use
+/// it. Answered from a cached index built in one pass over the game and mod
+/// scripts, so a name costs a map lookup rather than a rescan of the corpus.
 #[tauri::command]
-pub fn trigger_value_kind(
+pub async fn trigger_value_kind(
     state: State<'_, AppState>,
     project_id: String,
     name: String,
-) -> Result<Option<crate::scripts::ValueKind>> {
-    let (load_vanilla, game_dir, mod_dirs) = {
-        let db = lock_db(&state)?;
-        let settings = Settings::get(&db)?;
-        let project = db
-            .get_project(&project_id)?
-            .ok_or_else(|| Hoi4RadioError::ProjectNotFound { id: project_id.clone() })?;
-        (
-            project.load_vanilla_triggers,
-            settings.hoi4_game_dir,
-            project.trigger_mod_dirs,
-        )
-    };
+) -> Result<Option<ValueKind>> {
+    if name.is_empty() {
+        return Ok(None);
+    }
+    let cache = Arc::clone(&state.trigger_index);
+    let (key, roots) = project_trigger_sources(&state, &project_id)?;
 
-    let roots = crate::scripts::script_roots(
-        load_vanilla,
-        game_dir.as_deref().map(std::path::Path::new),
-        &mod_dirs.iter().map(std::path::PathBuf::from).collect::<Vec<_>>(),
-    );
-    Ok(crate::scripts::lookup_value_kind(&roots, &name))
+    // A cold index needs a full scan of the scripts, which must not run on the
+    // IPC thread: doing it there freezes the window for the whole read.
+    let index =
+        tauri::async_runtime::spawn_blocking(move || trigger_index_for(&cache, key, &roots))
+            .await
+            .map_err(|e| Hoi4RadioError::Other {
+                message: format!("trigger value-kind task failed: {e}"),
+            })??;
+
+    Ok(index.get(&name))
 }
 
 /// Return the trigger/tag/ideology vocabulary a project currently loads.
@@ -1221,20 +1291,20 @@ pub fn project_script_vocabulary(
     state: State<'_, AppState>,
     project_id: String,
 ) -> Result<crate::scripts::ScriptVocabulary> {
-    let db = lock_db(&state)?;
-    let settings = Settings::get(&db)?;
-    let project = db
-        .get_project(&project_id)?
-        .ok_or(Hoi4RadioError::ProjectNotFound { id: project_id })?;
-    Ok(crate::scripts::build_vocabulary(
-        project.load_vanilla_triggers,
-        settings.hoi4_game_dir.as_deref().map(std::path::Path::new),
-        &project
-            .trigger_mod_dirs
-            .iter()
-            .map(std::path::PathBuf::from)
-            .collect::<Vec<_>>(),
-    ))
+    let (key, roots) = project_trigger_sources(&state, &project_id)?;
+
+    // The editor asks for a trigger's value kind as soon as one is picked, and a
+    // cold index costs a full scan of the scripts. Start that scan now, on a
+    // blocking thread, so it has usually finished by the time a name is picked.
+    let cache = Arc::clone(&state.trigger_index);
+    let warm_roots = roots.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Err(e) = trigger_index_for(&cache, key, &warm_roots) {
+            tracing::warn!("could not warm the trigger value-kind index: {e}");
+        }
+    });
+
+    Ok(crate::scripts::build_vocabulary(&roots))
 }
 
 #[tauri::command]
@@ -1294,6 +1364,41 @@ pub fn get_default_library_dir(state: State<'_, AppState>) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::{sanitize_folder_name, transcode_concurrency};
+
+    /// A cached index belongs to the sources it was built from: asking for a
+    /// different set must rescan, not answer from the previous project's scripts.
+    #[test]
+    fn value_kind_index_cache_is_keyed_by_the_source_set() {
+        let mut sources = Vec::new();
+        for (load_vanilla, body) in [(true, "has_war = yes\n"), (false, "has_war = 0.5\n")] {
+            let dir = tempfile::tempdir().unwrap();
+            let common = dir.path().join("common");
+            std::fs::create_dir_all(&common).unwrap();
+            std::fs::write(common.join("usage.txt"), body).unwrap();
+            sources.push((load_vanilla, dir));
+        }
+
+        let cache: super::TriggerIndexCache = std::sync::Arc::new(std::sync::Mutex::new(None));
+        for (load_vanilla, dir) in &sources {
+            let key = super::TriggerSourceKey {
+                load_vanilla: *load_vanilla,
+                game_dir: None,
+                mod_dirs: vec![dir.path().to_string_lossy().to_string()],
+            };
+            let index =
+                super::trigger_index_for(&cache, key, &[dir.path().to_path_buf()]).unwrap();
+            let expected = if *load_vanilla {
+                crate::scripts::ValueKind::Boolean
+            } else {
+                crate::scripts::ValueKind::Number
+            };
+            assert_eq!(
+                index.get("has_war"),
+                Some(expected),
+                "load_vanilla = {load_vanilla} must use its own sources"
+            );
+        }
+    }
 
     #[test]
     fn transcode_concurrency_is_half_of_import_min_one() {
