@@ -169,7 +169,6 @@ export default {
   triggerValue: 'Value',
   triggerValuePlaceholder: 'Search or type a value',
   triggerNumberPlaceholder: 'Enter a number, e.g. 556',
-  triggerBooleanPlaceholder: 'yes or no',
   ideologyPlaceholder: 'e.g. democratic',
   triggerGeneric: 'Custom trigger',
   triggerWar: 'War state',

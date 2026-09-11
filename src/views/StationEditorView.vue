@@ -498,13 +498,37 @@
                       density="compact"
                       hide-details
                       class="trigger-name"
-                      @update:model-value="onTriggerNameChange"
+                      @update:model-value="(v) => onTriggerNameChange(trigger, asString(v))"
+                    />
+                    <v-select
+                      v-if="valueKindFor(trigger.name) === 'boolean'"
+                      :model-value="asString(trigger.value)"
+                      :items="booleanValueOptions"
+                      item-title="title"
+                      item-value="value"
+                      :label="$t('station.triggerValue')"
+                      variant="outlined"
+                      density="compact"
+                      hide-details
+                      @update:model-value="(v) => (trigger.value = asString(v))"
+                    />
+                    <v-text-field
+                      v-else-if="valueKindFor(trigger.name) === 'number'"
+                      :model-value="asString(trigger.value)"
+                      type="number"
+                      :label="$t('station.triggerValue')"
+                      :placeholder="$t('station.triggerNumberPlaceholder')"
+                      variant="outlined"
+                      density="compact"
+                      hide-details
+                      @update:model-value="(v) => (trigger.value = asString(v))"
                     />
                     <v-combobox
+                      v-else
                       :model-value="asString(trigger.value)"
                       :items="valueOptionsFor(trigger.name)"
                       :label="$t('station.triggerValue')"
-                      :placeholder="valuePlaceholderFor(trigger.name)"
+                      :placeholder="$t('station.triggerValuePlaceholder')"
                       variant="outlined"
                       density="compact"
                       hide-details
@@ -589,7 +613,7 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { useStationStore, type Station, type StationEntry, type ChanceConfig, type Modifier, type Trigger, type TriggerType } from '@/stores/station'
+import { useStationStore, type Station, type StationEntry, type ChanceConfig, type Modifier, type Trigger, type TriggerType, type ValueKind } from '@/stores/station'
 import { useProjectStore } from '@/stores/project'
 import { useAudioStore } from '@/stores/audio'
 import { errorMessage } from '@/utils/errors'
@@ -650,29 +674,36 @@ const ideologyOptions = computed(() => stationStore.vocabulary?.ideologies ?? []
  * combobox always stays free-form, and numeric triggers get no list at all —
  * only a hint — since their values are ids and ratios.
  */
+/** Cached value kind for a trigger name; undefined until it has been looked up. */
+function valueKindFor(name?: string): ValueKind | null | undefined {
+  return name ? stationStore.valueKinds[name] : undefined
+}
+
+/** Boolean triggers are written as `yes` / `no`, so offer exactly those. */
+const booleanValueOptions = computed(() => [
+  { title: t('station.yes'), value: 'yes' },
+  { title: t('station.no'), value: 'no' },
+])
+
+/**
+ * Candidate values for a free-text trigger: the scope keywords documented as
+ * its targets (`THIS`, `ROOT`, `PREV`, …) are valid values themselves.
+ */
 function valueOptionsFor(name?: string): string[] {
   const def = name ? stationStore.vocabulary?.triggers[name] : undefined
-  const keywords = (def?.targets ?? []).filter(
+  return (def?.targets ?? []).filter(
     (target) => target !== 'none' && target !== 'any'
   )
-  const suggestions = [...keywords]
-  if (name && stationStore.valueKinds[name] === 'boolean') {
-    suggestions.push('yes', 'no')
-  }
-  return Array.from(new Set(suggestions))
 }
 
-/** Placeholder that reflects the trigger's inferred value kind. */
-function valuePlaceholderFor(name?: string): string {
-  const kind = name ? stationStore.valueKinds[name] : undefined
-  if (kind === 'number') return t('station.triggerNumberPlaceholder')
-  if (kind === 'boolean') return t('station.triggerBooleanPlaceholder')
-  return t('station.triggerValuePlaceholder')
-}
-
-/** Look up (once) how the scripts use the selected trigger. */
-function onTriggerNameChange(name: string) {
-  stationStore.ensureValueKind(name)
+/**
+ * Look up how the scripts use the chosen trigger and seed a value that is valid
+ * for that kind. A boolean trigger starts at `yes`; every other kind starts
+ * empty, so no stale `yes` is carried into a tag or a numeric trigger.
+ */
+async function onTriggerNameChange(trigger: Trigger, name: string) {
+  const kind = await stationStore.ensureValueKind(name)
+  trigger.value = kind === 'boolean' ? 'yes' : ''
 }
 
 const vocabularyTriggerOptions = computed(() => {
@@ -856,6 +887,17 @@ function openChanceEditor(stationId: string, entry: StationEntry) {
   chanceEditorAudioId.value = entry.audio_file_id
   chanceEditorData.value = JSON.parse(JSON.stringify(entry.chance)) as ChanceConfig
   showChanceDialog.value = true
+
+  // Resolve the value kind of every generic trigger already on this entry, so
+  // each row renders the control matching its type (yes/no, number, or text)
+  // instead of falling back to the text field until the user re-picks a name.
+  for (const modifier of chanceEditorData.value.modifiers) {
+    for (const trigger of modifier.triggers) {
+      if (trigger.type === 'generic' && trigger.name) {
+        stationStore.ensureValueKind(trigger.name)
+      }
+    }
+  }
 }
 
 function addModifier() {
@@ -886,7 +928,7 @@ function asString(v: unknown): string {
 
 function onTriggerTypeChange(trigger: Trigger, type: TriggerType) {
   trigger.type = type
-  trigger.value = type === 'has_war' ? true : type === 'generic' ? 'yes' : ''
+  trigger.value = type === 'has_war' ? true : ''
   trigger.ideology = ''
   trigger.tag = ''
   trigger.name = ''

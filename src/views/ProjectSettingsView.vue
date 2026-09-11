@@ -61,9 +61,48 @@
               prepend-inner-icon="mdi-tag-multiple"
               multiple
               chips
-              class="mb-6"
+              class="mb-4"
               hide-details="auto"
             />
+
+            <v-divider opacity="0.2" class="mb-6" />
+
+            <!-- Trigger vocabulary sources: part of this same form, so the one
+                 save button below applies to them too. -->
+            <div class="text-mono text-caption text-secondary mb-1">TRIGGER SOURCES</div>
+            <div class="text-body-1 mb-4">{{ $t('triggers.sourcesTitle') }}</div>
+
+            <v-checkbox
+              :model-value="form.load_vanilla_triggers"
+              :label="$t('triggers.loadVanilla')"
+              hide-details
+              density="comfortable"
+              class="mb-2"
+              @update:model-value="(v) => (form.load_vanilla_triggers = !!v)"
+            />
+            <div class="text-caption text-secondary mb-4">
+              {{ $t('triggers.loadVanillaHint') }}
+            </div>
+
+            <v-select
+              v-model="form.trigger_mod_dirs"
+              :items="modOptions"
+              :label="$t('triggers.loadMods')"
+              :placeholder="$t('triggers.selectMods')"
+              multiple
+              chips
+              closable-chips
+              item-title="title"
+              item-value="value"
+              prepend-inner-icon="mdi-puzzle-outline"
+            />
+            <div class="text-caption text-secondary mt-2 mb-6">
+              <template v-if="modOptions.length">{{ $t('triggers.loadModsHint') }}</template>
+              <template v-else-if="form.trigger_mod_dirs.length">
+                {{ $t('triggers.modsUnavailable', { count: form.trigger_mod_dirs.length }) }}
+              </template>
+              <template v-else>{{ $t('triggers.noMods') }}</template>
+            </div>
 
             <v-btn
               color="primary"
@@ -89,50 +128,6 @@
             </v-card>
           </v-col>
         </v-row>
-      </v-card-text>
-    </v-card>
-
-    <!-- Trigger vocabulary sources -->
-    <v-card class="settings-card mt-6" variant="elevated" rounded="xl">
-      <v-card-title class="pa-6 pb-2">
-        <div class="text-mono text-caption text-secondary mb-1">TRIGGER SOURCES</div>
-        <div class="text-display text-h5">{{ $t('triggers.sourcesTitle') }}</div>
-      </v-card-title>
-
-      <v-divider opacity="0.2" />
-
-      <v-card-text class="pa-6">
-        <v-checkbox
-          :model-value="form.load_vanilla_triggers"
-          :label="$t('triggers.loadVanilla')"
-          hide-details
-          density="comfortable"
-          class="mb-2"
-          @update:model-value="(v) => (form.load_vanilla_triggers = !!v)"
-        />
-        <div class="text-caption text-secondary mb-4">
-          {{ $t('triggers.loadVanillaHint') }}
-        </div>
-
-        <v-select
-          v-model="form.trigger_mod_dirs"
-          :items="modOptions"
-          :label="$t('triggers.loadMods')"
-          :placeholder="$t('triggers.selectMods')"
-          multiple
-          chips
-          closable-chips
-          item-title="title"
-          item-value="value"
-          prepend-inner-icon="mdi-puzzle-outline"
-        />
-        <div class="text-caption text-secondary mt-2">
-          <template v-if="modOptions.length">{{ $t('triggers.loadModsHint') }}</template>
-          <template v-else-if="form.trigger_mod_dirs.length">
-            {{ $t('triggers.modsUnavailable', { count: form.trigger_mod_dirs.length }) }}
-          </template>
-          <template v-else>{{ $t('triggers.noMods') }}</template>
-        </div>
       </v-card-text>
     </v-card>
 

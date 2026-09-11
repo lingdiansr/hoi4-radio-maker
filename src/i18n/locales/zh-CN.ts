@@ -164,7 +164,6 @@ export default {
   triggerValue: '取值',
   triggerValuePlaceholder: '可搜索，也可直接输入',
   triggerNumberPlaceholder: '填写数字，例如 556',
-  triggerBooleanPlaceholder: 'yes 或 no',
   ideologyPlaceholder: '例如：democratic',
   triggerGeneric: '自定义 trigger',
   triggerWar: '战争状态',
