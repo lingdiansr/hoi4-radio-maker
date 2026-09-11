@@ -1053,17 +1053,23 @@ async function handleDelete() {
 
 /*
  * A trigger row packs a type select, an optional name, a value control, and a
- * delete button. Flex items default to `min-width: auto`, which refuses to
- * shrink below content width — so a long mod trigger name (30+ chars) used to
- * push the value control down to an unusable sliver.
+ * delete button.
  *
- * Allowing shrink (`min-width: 0`) and sizing each control from its own content
- * (`flex-basis: auto`) lets the row lay itself out: normal content takes the
- * width it needs, and when space runs short the long field absorbs the
- * truncation instead of stealing its siblings' space.
+ * Two mechanisms used to squash the value control: flex items default to
+ * `min-width: auto` (they refuse to shrink below content width, so a long mod
+ * trigger name stole the space), and once shrink was allowed, a narrow window
+ * let the value control shrink without limit — the dialog is only as wide as
+ * `min(640px, 100% - 48px)`, so a small window left it a ~40px sliver.
+ *
+ * So: every control may shrink (`min-width: 0`), but each declares a floor via
+ * its min-width, which also sets the row's wrap threshold. Wide enough, the row
+ * is a single line and the two flexible fields share the slack; too narrow, the
+ * value control drops to its own line at full width instead of becoming
+ * unusable. The type select stays a stable, aligned column sized to its label.
  */
 .trigger-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -1079,11 +1085,13 @@ async function handleDelete() {
 }
 
 .trigger-name {
-  flex: 1 1 auto;
+  flex: 1 1 140px;
+  min-width: 140px;
 }
 
 .trigger-value {
-  flex: 1 1 auto;
+  flex: 1 1 130px;
+  min-width: 130px;
 }
 
 .empty-state {
