@@ -36,7 +36,12 @@ export interface StationEntry {
 export interface TriggerDef {
   name: string
   scopes: string[]
+  /** Documented targets; scope keywords here are valid values. */
+  targets: string[]
 }
+
+/** Value kind inferred from how the game/mod scripts use a trigger. */
+export type ValueKind = 'boolean' | 'number' | 'text'
 
 /** Trigger/tag/ideology vocabulary a project loads from the game and its mods. */
 export interface ScriptVocabulary {
@@ -55,7 +60,22 @@ export interface Station {
 export const useStationStore = defineStore('station', () => {
   const stations = ref<Station[]>([])
   const vocabulary = ref<ScriptVocabulary | null>(null)
+  // Value kinds are looked up on demand (the backend scans scripts until it has
+  // enough examples) and kept for the session.
+  const valueKinds = ref<Record<string, ValueKind | null>>({})
   const projectStore = useProjectStore()
+
+  /** Resolve a trigger's value kind once, then serve it from the cache. */
+  async function ensureValueKind(name: string) {
+    if (!name || name in valueKinds.value) return valueKinds.value[name]
+    if (!projectStore.currentProject) return null
+    const kind = await invokeCommand<ValueKind | null>('trigger_value_kind', {
+      projectId: projectStore.currentProject.id,
+      name,
+    })
+    valueKinds.value[name] = kind ?? null
+    return valueKinds.value[name]
+  }
 
   /** Load the project's trigger vocabulary; empty when nothing is configured. */
   async function loadVocabulary() {
@@ -63,6 +83,8 @@ export const useStationStore = defineStore('station', () => {
     vocabulary.value = await invokeCommand<ScriptVocabulary>('project_script_vocabulary', {
       projectId: projectStore.currentProject.id,
     })
+    // Cached kinds belong to the previous source set.
+    valueKinds.value = {}
   }
 
   async function loadStations() {
@@ -163,7 +185,9 @@ export const useStationStore = defineStore('station', () => {
   return {
     stations,
     vocabulary,
+    valueKinds,
     loadVocabulary,
+    ensureValueKind,
     loadStations,
     createStation,
     renameStation,

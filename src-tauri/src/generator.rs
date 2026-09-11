@@ -239,7 +239,16 @@ fn format_trigger(trigger: &Trigger) -> String {
         Trigger::Tag { value } => format!("tag = {}", value),
         Trigger::HasGovernment { ideology } => format!("has_government = {}", ideology),
         Trigger::IsInFaction { tag } => format!("is_in_faction_with = {}", tag),
-        Trigger::Generic { name, value } => format!("{} = {}", name, value),
+        // Values are emitted verbatim (never quoted) so numeric and scope
+        // values stay bare, exactly as the game writes them; quoting is only
+        // added for free text that would otherwise break the token.
+        Trigger::Generic { name, value } => {
+            if value.chars().any(|c| c.is_whitespace() || c == '"') {
+                format!("{} = \"{}\"", name, escape_hoi4(value))
+            } else {
+                format!("{} = {}", name, value)
+            }
+        }
     }
 }
 
@@ -276,6 +285,23 @@ mod tests {
     use crate::models::{ImportStatus, Project};
     use chrono::Utc;
     use std::path::PathBuf;
+
+    #[test]
+    fn generic_trigger_values_stay_unquoted_unless_they_need_quoting() {
+        let line = |name: &str, value: &str| {
+            format_trigger(&Trigger::Generic {
+                name: name.to_string(),
+                value: value.to_string(),
+            })
+        };
+        // Numbers, booleans, and single tokens are written bare, as the game does.
+        assert_eq!(line("stockpile_ratio", "0.7"), "stockpile_ratio = 0.7");
+        assert_eq!(line("has_war", "yes"), "has_war = yes");
+        assert_eq!(line("original_tag", "NOR"), "original_tag = NOR");
+        // Free text that would break the token is quoted and escaped.
+        assert_eq!(line("has_country_flag", "my flag"), "has_country_flag = \"my flag\"");
+        assert_eq!(line("a_flag", "say \"hi\""), "a_flag = \"say \\\"hi\\\"\"");
+    }
 
     #[test]
     fn escape_hoi4_handles_quotes_and_backslashes() {

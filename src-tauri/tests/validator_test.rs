@@ -334,6 +334,7 @@ music = {
             TriggerDef {
                 name: name.to_string(),
                 scopes: vec!["COUNTRY".to_string()],
+                targets: vec!["none".to_string()],
             },
         );
     }

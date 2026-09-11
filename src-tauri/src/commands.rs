@@ -1183,6 +1183,38 @@ pub fn list_workshop_mods(state: State<'_, AppState>) -> Result<Vec<crate::model
     )))
 }
 
+/// Infer the value kind a trigger takes, from the game/mod scripts of a project.
+///
+/// Advisory and on-demand: the scan stops once it has seen enough examples, so
+/// the editor can hint "number" / "boolean" / "free text" without paying for a
+/// full corpus pass.
+#[tauri::command]
+pub fn trigger_value_kind(
+    state: State<'_, AppState>,
+    project_id: String,
+    name: String,
+) -> Result<Option<crate::scripts::ValueKind>> {
+    let (load_vanilla, game_dir, mod_dirs) = {
+        let db = lock_db(&state)?;
+        let settings = Settings::get(&db)?;
+        let project = db
+            .get_project(&project_id)?
+            .ok_or_else(|| Hoi4RadioError::ProjectNotFound { id: project_id.clone() })?;
+        (
+            project.load_vanilla_triggers,
+            settings.hoi4_game_dir,
+            project.trigger_mod_dirs,
+        )
+    };
+
+    let roots = crate::scripts::script_roots(
+        load_vanilla,
+        game_dir.as_deref().map(std::path::Path::new),
+        &mod_dirs.iter().map(std::path::PathBuf::from).collect::<Vec<_>>(),
+    );
+    Ok(crate::scripts::lookup_value_kind(&roots, &name))
+}
+
 /// Return the trigger/tag/ideology vocabulary a project currently loads.
 #[tauri::command]
 pub fn project_script_vocabulary(

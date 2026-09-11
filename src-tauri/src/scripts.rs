@@ -23,6 +23,20 @@ pub struct TriggerDef {
     /// Supported scopes as documented, e.g. `["COUNTRY"]`. May be empty when
     /// the documentation omits the line.
     pub scopes: Vec<String>,
+    /// Supported targets as documented, e.g. `["THIS", "ROOT", "PREV"]`, or
+    /// `["none"]` / `["any"]`. Scope keywords here are valid values, so they
+    /// double as value suggestions in the editor.
+    pub targets: Vec<String>,
+}
+
+/// The kind of value a trigger expects, inferred from how the game's own
+/// scripts use it (the documentation does not state value types).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ValueKind {
+    Boolean,
+    Number,
+    Text,
 }
 
 /// Trigger names, country tags, and ideologies available to a project.
@@ -72,17 +86,32 @@ pub fn parse_trigger_documentation(text: &str) -> Vec<TriggerDef> {
         }
         if let Some(rest) = trimmed.strip_prefix("* Supported Scopes:") {
             if let Some(name) = pending.take() {
-                let scopes = rest
-                    .split(',')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect();
-                out.push(TriggerDef { name, scopes });
+                let scopes = split_list(rest);
+                out.push(TriggerDef {
+                    name,
+                    scopes,
+                    targets: Vec::new(),
+                });
+            }
+        } else if let Some(rest) = trimmed.strip_prefix("* Supported Targets:") {
+            // Attach to the definition the preceding `Supported Scopes` line opened.
+            if let Some(def) = out.last_mut() {
+                if def.targets.is_empty() {
+                    def.targets = split_list(rest);
+                }
             }
         }
     }
 
     out
+}
+
+/// Split a comma-separated documentation list into trimmed, non-empty items.
+fn split_list(rest: &str) -> Vec<String> {
+    rest.split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 /// Collect top-level `<name> = {` blocks from a `scripted_triggers` file.
@@ -209,6 +238,7 @@ fn vocabulary_from_root(root: &Path) -> ScriptVocabulary {
             vocab.triggers.entry(name.clone()).or_insert(TriggerDef {
                 name,
                 scopes: Vec::new(),
+                targets: Vec::new(),
             });
         }
     }
@@ -302,6 +332,180 @@ fn read_descriptor_name(mod_dir: &Path) -> Option<String> {
     None
 }
 
+/// Directories under a root that contain script using triggers.
+const SCRIPT_DIRS: &[&str] = &["common", "events", "history", "decisions"];
+
+/// Upper bound on files inspected by a value-kind lookup, so a pathological
+/// install cannot stall the UI.
+const MAX_SCAN_FILES: usize = 12_000;
+
+/// Observations needed before a lookup concludes a trigger's value kind.
+const KIND_SAMPLE: u32 = 5;
+
+/// Collect `*.txt` files under the trigger-bearing script directories of a
+/// root, in a deterministic (sorted) order.
+fn collect_script_files(root: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    for dir in SCRIPT_DIRS {
+        collect_txt(&root.join(dir), &mut files);
+        if files.len() >= MAX_SCAN_FILES {
+            break;
+        }
+    }
+    files.truncate(MAX_SCAN_FILES);
+    // Sorted so an early-exit lookup is deterministic across runs.
+    files.sort();
+    files
+}
+
+fn collect_txt(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if out.len() >= MAX_SCAN_FILES {
+            return;
+        }
+        let path = entry.path();
+        if path.is_dir() {
+            collect_txt(&path, out);
+        } else if path.extension().and_then(|e| e.to_str()) == Some("txt") {
+            out.push(path);
+        }
+    }
+}
+
+fn trim_bytes(mut s: &[u8]) -> &[u8] {
+    while let Some((first, rest)) = s.split_first() {
+        if first.is_ascii_whitespace() {
+            s = rest;
+        } else {
+            break;
+        }
+    }
+    while let Some((last, rest)) = s.split_last() {
+        if last.is_ascii_whitespace() {
+            s = rest;
+        } else {
+            break;
+        }
+    }
+    s
+}
+
+/// Classify a script value token: `yes`/`no`, a number, or free text.
+/// Returns `None` for tokens that are not a single value (blocks, lists).
+fn classify_value(value: &[u8]) -> Option<ValueKind> {
+    if value == b"yes" || value == b"no" {
+        return Some(ValueKind::Boolean);
+    }
+    if value.is_empty() {
+        return None;
+    }
+    if value
+        .iter()
+        .any(|b| b.is_ascii_whitespace() || matches!(b, b'{' | b'}' | b'#'))
+    {
+        return None;
+    }
+    let mut digit = false;
+    for (i, b) in value.iter().enumerate() {
+        if b.is_ascii_digit() {
+            digit = true;
+        } else if matches!(b, b'-' | b'+' | b'.')
+            && (i == 0 || value[i - 1].is_ascii_digit())
+        {
+            // sign or decimal point in a numeric token
+        } else {
+            return Some(ValueKind::Text);
+        }
+    }
+    if digit {
+        Some(ValueKind::Number)
+    } else {
+        None
+    }
+}
+
+/// Infer the value kind a trigger takes, from how the game and the selected
+/// mods actually use it.
+///
+/// The documentation states scopes and targets but not value types, and
+/// `Supported Targets` does not predict them (`stockpile_ratio` is documented
+/// as `none` yet takes a number). Usage is therefore the only reliable signal.
+/// The scan stops as soon as [`KIND_SAMPLE`] observations are gathered, so
+/// common triggers resolve in milliseconds; a trigger that is never used (or
+/// only rarely) falls back to the documented suggestions.
+pub fn lookup_value_kind(roots: &[PathBuf], name: &str) -> Option<ValueKind> {
+    if name.is_empty() {
+        return None;
+    }
+    let target = name.as_bytes();
+
+    let mut counts = [0u32; 3];
+    let mut seen = 0u32;
+
+    'roots: for root in roots {
+        for file in collect_script_files(root) {
+            let Ok(data) = std::fs::read(&file) else {
+                continue;
+            };
+            for raw in data.split(|b| *b == b'\n') {
+                let line = trim_bytes(raw);
+                // Cheap pre-filter: script keys start with a lowercase letter.
+                let Some((first, _)) = line.split_first() else {
+                    continue;
+                };
+                if !first.is_ascii_lowercase() {
+                    continue;
+                }
+                let Some(eq) = line.iter().position(|b| *b == b'=') else {
+                    continue;
+                };
+                if trim_bytes(&line[..eq]) != target {
+                    continue;
+                }
+                let mut value = trim_bytes(&line[eq + 1..]);
+                if value.len() >= 2 && value[0] == b'"' && value[value.len() - 1] == b'"' {
+                    value = &value[1..value.len() - 1];
+                }
+                if let Some(kind) = classify_value(value) {
+                    counts[kind as usize] += 1;
+                    seen += 1;
+                    if seen >= KIND_SAMPLE {
+                        break 'roots;
+                    }
+                }
+            }
+        }
+    }
+
+    if seen == 0 {
+        return None;
+    }
+    // Majority wins; ties favour the more permissive text kind.
+    let order = [ValueKind::Boolean, ValueKind::Number, ValueKind::Text];
+    let mut best = 0usize;
+    for (i, count) in counts.iter().enumerate() {
+        if *count > counts[best] || (*count == counts[best] && i > best && *count > 0) {
+            best = i;
+        }
+    }
+    Some(order[best])
+}
+
+/// The script roots a project loads: the game (when enabled) plus its mods.
+pub fn script_roots(load_vanilla: bool, game_dir: Option<&Path>, mod_dirs: &[PathBuf]) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if load_vanilla {
+        if let Some(g) = game_dir {
+            roots.push(g.to_path_buf());
+        }
+    }
+    roots.extend(mod_dirs.iter().cloned());
+    roots
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -325,6 +529,7 @@ mod tests {
 ## has_war
 
 * Supported Scopes: COUNTRY, STATE
+* Supported Targets: THIS, ROOT, PREV
 
 ## not_a_trigger
 
@@ -386,6 +591,73 @@ ideologies = {
             parse_ideologies(text),
             vec!["democratic".to_string(), "communism".to_string()]
         );
+    }
+
+    #[test]
+    fn parses_supported_targets_onto_the_definition() {
+        let defs = parse_trigger_documentation(DOC);
+        let has_war = defs.iter().find(|d| d.name == "has_war").unwrap();
+        assert_eq!(has_war.scopes, vec!["COUNTRY", "STATE"]);
+        assert_eq!(has_war.targets, vec!["THIS", "ROOT", "PREV"]);
+        let gov = defs.iter().find(|d| d.name == "has_government").unwrap();
+        assert_eq!(gov.targets, vec!["none"]);
+    }
+
+    #[test]
+    fn classifies_value_tokens() {
+        assert_eq!(classify_value(b"yes"), Some(ValueKind::Boolean));
+        assert_eq!(classify_value(b"no"), Some(ValueKind::Boolean));
+        assert_eq!(classify_value(b"556"), Some(ValueKind::Number));
+        assert_eq!(classify_value(b"0.7"), Some(ValueKind::Number));
+        assert_eq!(classify_value(b"-12"), Some(ValueKind::Number));
+        assert_eq!(classify_value(b"CHI"), Some(ValueKind::Text));
+        assert_eq!(classify_value(b"democratic"), Some(ValueKind::Text));
+        // Blocks, lists, and empties are not single values.
+        assert_eq!(classify_value(b"{"), None);
+        assert_eq!(classify_value(b"a b"), None);
+        assert_eq!(classify_value(b""), None);
+    }
+
+    #[test]
+    fn infers_value_kind_from_script_usage() {
+        let tmp = tempfile::tempdir().unwrap();
+        let common = tmp.path().join("common");
+        std::fs::create_dir_all(&common).unwrap();
+
+        let mut body = String::new();
+        for _ in 0..6 {
+            body.push_str("has_war = yes\nstockpile_ratio = 0.7\noriginal_tag = NOR\n");
+        }
+        std::fs::write(common.join("usage.txt"), body).unwrap();
+
+        let roots = vec![tmp.path().to_path_buf()];
+        assert_eq!(
+            lookup_value_kind(&roots, "has_war"),
+            Some(ValueKind::Boolean)
+        );
+        assert_eq!(
+            lookup_value_kind(&roots, "stockpile_ratio"),
+            Some(ValueKind::Number)
+        );
+        assert_eq!(
+            lookup_value_kind(&roots, "original_tag"),
+            Some(ValueKind::Text)
+        );
+        // A trigger the scripts never use has no inferred kind.
+        assert_eq!(lookup_value_kind(&roots, "never_used_trigger"), None);
+        // Nested directories are scanned too.
+        assert_eq!(lookup_value_kind(&roots, ""), None);
+    }
+
+    #[test]
+    fn script_roots_follow_the_project_sources() {
+        let game = PathBuf::from("/game");
+        let mods = vec![PathBuf::from("/mods/a"), PathBuf::from("/mods/b")];
+
+        assert!(script_roots(false, Some(&game), &[]).is_empty());
+        assert_eq!(script_roots(true, Some(&game), &[]), vec![game.clone()]);
+        assert_eq!(script_roots(false, Some(&game), &mods), mods);
+        assert_eq!(script_roots(true, Some(&game), &mods).len(), 3);
     }
 
     #[test]

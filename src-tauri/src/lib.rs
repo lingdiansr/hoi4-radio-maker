@@ -99,6 +99,7 @@ pub fn run() {
             commands::validate_project_mod,
             commands::list_workshop_mods,
             commands::project_script_vocabulary,
+            commands::trigger_value_kind,
             commands::get_settings,
             commands::save_settings,
             commands::get_default_library_dir,

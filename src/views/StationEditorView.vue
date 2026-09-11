@@ -498,11 +498,13 @@
                       density="compact"
                       hide-details
                       class="trigger-name"
+                      @update:model-value="onTriggerNameChange"
                     />
                     <v-combobox
                       :model-value="asString(trigger.value)"
-                      :items="genericValueOptions"
+                      :items="valueOptionsFor(trigger.name)"
                       :label="$t('station.triggerValue')"
+                      :placeholder="valuePlaceholderFor(trigger.name)"
                       variant="outlined"
                       density="compact"
                       hide-details
@@ -640,8 +642,38 @@ const countryTagOptions = computed(() => stationStore.vocabulary?.country_tags ?
 /** Ideology ids from the loaded vocabulary, offered as suggestions. */
 const ideologyOptions = computed(() => stationStore.vocabulary?.ideologies ?? [])
 
-/** Values a generic trigger commonly takes; the field stays free-form. */
-const genericValueOptions = ['yes', 'no']
+/**
+ * Candidate values for a generic trigger.
+ *
+ * Scope keywords come from the trigger's documented targets (they are valid
+ * values); `yes`/`no` are offered once the scripts show a boolean usage. The
+ * combobox always stays free-form, and numeric triggers get no list at all —
+ * only a hint — since their values are ids and ratios.
+ */
+function valueOptionsFor(name?: string): string[] {
+  const def = name ? stationStore.vocabulary?.triggers[name] : undefined
+  const keywords = (def?.targets ?? []).filter(
+    (target) => target !== 'none' && target !== 'any'
+  )
+  const suggestions = [...keywords]
+  if (name && stationStore.valueKinds[name] === 'boolean') {
+    suggestions.push('yes', 'no')
+  }
+  return Array.from(new Set(suggestions))
+}
+
+/** Placeholder that reflects the trigger's inferred value kind. */
+function valuePlaceholderFor(name?: string): string {
+  const kind = name ? stationStore.valueKinds[name] : undefined
+  if (kind === 'number') return t('station.triggerNumberPlaceholder')
+  if (kind === 'boolean') return t('station.triggerBooleanPlaceholder')
+  return t('station.triggerValuePlaceholder')
+}
+
+/** Look up (once) how the scripts use the selected trigger. */
+function onTriggerNameChange(name: string) {
+  stationStore.ensureValueKind(name)
+}
 
 const vocabularyTriggerOptions = computed(() => {
   const triggers = stationStore.vocabulary?.triggers ?? {}
