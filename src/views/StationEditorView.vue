@@ -432,7 +432,7 @@
                 <div
                   v-for="(trigger, tIdx) in modifier.triggers"
                   :key="tIdx"
-                  class="d-flex align-center gap-2 mb-2"
+                  class="trigger-row mb-2"
                 >
                   <v-select
                     :model-value="trigger.type"
@@ -455,6 +455,7 @@
                     variant="outlined"
                     density="compact"
                     hide-details
+                    class="trigger-value"
                     @update:model-value="(v) => (trigger.value = asString(v))"
                   />
                   <v-select
@@ -467,6 +468,7 @@
                     variant="outlined"
                     density="compact"
                     hide-details
+                    class="trigger-value"
                   />
                   <v-combobox
                     v-else-if="trigger.type === 'has_government'"
@@ -477,6 +479,7 @@
                     variant="outlined"
                     density="compact"
                     hide-details
+                    class="trigger-value"
                   />
                   <v-combobox
                     v-else-if="trigger.type === 'is_in_faction'"
@@ -487,6 +490,7 @@
                     variant="outlined"
                     density="compact"
                     hide-details
+                    class="trigger-value"
                   />
                   <template v-else-if="trigger.type === 'generic'">
                     <v-combobox
@@ -510,6 +514,7 @@
                       variant="outlined"
                       density="compact"
                       hide-details
+                      class="trigger-value"
                       @update:model-value="(v) => (trigger.value = asString(v))"
                     />
                     <v-text-field
@@ -521,6 +526,7 @@
                       variant="outlined"
                       density="compact"
                       hide-details
+                      class="trigger-value"
                       @update:model-value="(v) => (trigger.value = asString(v))"
                     />
                     <v-combobox
@@ -532,6 +538,7 @@
                       variant="outlined"
                       density="compact"
                       hide-details
+                      class="trigger-value"
                       @update:model-value="(v) => (trigger.value = asString(v))"
                     />
                   </template>
@@ -1044,8 +1051,39 @@ async function handleDelete() {
   border-color: rgba(var(--v-theme-outline), 0.4);
 }
 
+/*
+ * A trigger row packs a type select, an optional name, a value control, and a
+ * delete button. Flex items default to `min-width: auto`, which refuses to
+ * shrink below content width — so a long mod trigger name (30+ chars) used to
+ * push the value control down to an unusable sliver.
+ *
+ * Allowing shrink (`min-width: 0`) and sizing each control from its own content
+ * (`flex-basis: auto`) lets the row lay itself out: normal content takes the
+ * width it needs, and when space runs short the long field absorbs the
+ * truncation instead of stealing its siblings' space.
+ */
+.trigger-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trigger-row > * {
+  min-width: 0;
+}
+
 .trigger-type {
-  max-width: 140px;
+  flex: 0 1 auto;
+  /* Never narrower than the selected type's own label, whatever the width. */
+  min-width: fit-content;
+}
+
+.trigger-name {
+  flex: 1 1 auto;
+}
+
+.trigger-value {
+  flex: 1 1 auto;
 }
 
 .empty-state {
