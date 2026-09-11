@@ -169,13 +169,14 @@ import { reactive, watch, ref, computed, nextTick, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useProjectStore, type UpdateProjectRequest, type WorkshopMod } from '@/stores/project'
-import { useCommand } from '@/composables/useCommand'
 import { invokeCommand } from '@/api/client'
+import { errorMessage } from '@/utils/errors'
 import { logger } from '@/utils/logger'
+import { useToastStore } from '@/stores/toast'
 
 const router = useRouter()
 const projectStore = useProjectStore()
-const { run } = useCommand()
+const toast = useToastStore()
 const { t } = useI18n()
 
 // Trigger vocabulary sources. The mod list comes from the installed Steam
@@ -284,12 +285,14 @@ async function save() {
   if (!p) return
   saving.value = true
   try {
-    await run(
-      'update_project',
-      { id: p.id, req: { ...form } },
-      { successMsg: t('project.infoSaved') }
-    )
+    // Go through the store: it refreshes `currentProject`, which the station
+    // editor watches to reload the trigger vocabulary.
+    const updated = await projectStore.updateProject(p.id, { ...form })
+    logger.info(`project settings: saved project ${updated.id}`)
+    toast.display(t('project.infoSaved'), 'success')
     isDirty.value = false
+  } catch (err) {
+    toast.display(errorMessage(err), 'error', 4000)
   } finally {
     saving.value = false
   }

@@ -682,6 +682,20 @@ watch(
   { immediate: true }
 )
 
+// The trigger vocabulary depends on the project's selected sources, so reload
+// it whenever those change (e.g. mods picked in the project info tab).
+watch(
+  () => {
+    const p = projectStore.currentProject
+    return p ? `${p.load_vanilla_triggers}|${p.trigger_mod_dirs.join(',')}` : ''
+  },
+  (key, prev) => {
+    if (key && prev !== undefined && key !== prev) {
+      stationStore.loadVocabulary()
+    }
+  }
+)
+
 watch(
   () => stationStore.stations,
   (stations) => {
