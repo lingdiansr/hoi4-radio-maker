@@ -167,6 +167,8 @@ export default {
   triggerName: 'Trigger name',
   triggerNamePlaceholder: 'Pick from the loaded game/mod triggers',
   triggerValue: 'Value',
+  triggerValuePlaceholder: 'Search or type a value',
+  ideologyPlaceholder: 'e.g. democratic',
   triggerGeneric: 'Custom trigger',
   triggerWar: 'War state',
   triggerTag: 'Country tag',

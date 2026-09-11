@@ -435,7 +435,7 @@
                   class="d-flex align-center gap-2 mb-2"
                 >
                   <v-select
-                    v-model="trigger.type"
+                    :model-value="trigger.type"
                     :items="triggerTypes"
                     item-title="label"
                     item-value="value"
@@ -444,15 +444,18 @@
                     density="compact"
                     hide-details
                     class="trigger-type"
+                    @update:model-value="(v) => onTriggerTypeChange(trigger, v as TriggerType)"
                   />
-                  <v-text-field
+                  <v-combobox
                     v-if="trigger.type === 'tag'"
-                    v-model="trigger.value"
+                    :model-value="asString(trigger.value)"
+                    :items="countryTagOptions"
                     :label="$t('station.countryTag')"
-                    placeholder="CHI"
+                    :placeholder="$t('station.triggerValuePlaceholder')"
                     variant="outlined"
                     density="compact"
                     hide-details
+                    @update:model-value="(v) => (trigger.value = asString(v))"
                   />
                   <v-select
                     v-else-if="trigger.type === 'has_war'"
@@ -465,26 +468,28 @@
                     density="compact"
                     hide-details
                   />
-                  <v-text-field
+                  <v-combobox
                     v-else-if="trigger.type === 'has_government'"
                     v-model="trigger.ideology"
+                    :items="ideologyOptions"
                     :label="$t('station.ideology')"
-                    placeholder="democratic"
+                    :placeholder="$t('station.ideologyPlaceholder')"
                     variant="outlined"
                     density="compact"
                     hide-details
                   />
-                  <v-text-field
+                  <v-combobox
                     v-else-if="trigger.type === 'is_in_faction'"
                     v-model="trigger.tag"
+                    :items="countryTagOptions"
                     :label="$t('station.factionCountry')"
-                    placeholder="USA"
+                    :placeholder="$t('station.triggerValuePlaceholder')"
                     variant="outlined"
                     density="compact"
                     hide-details
                   />
                   <template v-else-if="trigger.type === 'generic'">
-                    <v-select
+                    <v-combobox
                       v-model="trigger.name"
                       :items="vocabularyTriggerOptions"
                       :label="$t('station.triggerName')"
@@ -494,13 +499,14 @@
                       hide-details
                       class="trigger-name"
                     />
-                    <v-text-field
-                      v-model="trigger.value"
+                    <v-combobox
+                      :model-value="asString(trigger.value)"
+                      :items="genericValueOptions"
                       :label="$t('station.triggerValue')"
-                      placeholder="yes"
                       variant="outlined"
                       density="compact"
                       hide-details
+                      @update:model-value="(v) => (trigger.value = asString(v))"
                     />
                   </template>
                   <v-btn
@@ -582,6 +588,7 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useStationStore, type Station, type StationEntry, type ChanceConfig, type Modifier, type Trigger, type TriggerType } from '@/stores/station'
+import { useProjectStore } from '@/stores/project'
 import { useAudioStore } from '@/stores/audio'
 import { errorMessage } from '@/utils/errors'
 import { logger } from '@/utils/logger'
@@ -591,6 +598,7 @@ import AudioPickerDialog from '@/components/AudioPickerDialog.vue'
 const route = useRoute()
 const { t } = useI18n()
 const stationStore = useStationStore()
+const projectStore = useProjectStore()
 const audioStore = useAudioStore()
 const toast = useToastStore()
 const activeTab = ref<string>('')
@@ -626,6 +634,15 @@ const triggerTypes = computed(() => [
  * Trigger names from the project's loaded vocabulary, restricted to
  * country-scoped triggers since music chances are evaluated for a country.
  */
+/** Country tags from the loaded vocabulary, offered as suggestions. */
+const countryTagOptions = computed(() => stationStore.vocabulary?.country_tags ?? [])
+
+/** Ideology ids from the loaded vocabulary, offered as suggestions. */
+const ideologyOptions = computed(() => stationStore.vocabulary?.ideologies ?? [])
+
+/** Values a generic trigger commonly takes; the field stays free-form. */
+const genericValueOptions = ['yes', 'no']
+
 const vocabularyTriggerOptions = computed(() => {
   const triggers = stationStore.vocabulary?.triggers ?? {}
   return Object.values(triggers)
@@ -648,12 +665,22 @@ function slug(name: string) {
 }
 
 onMounted(() => {
-  stationStore.loadStations()
-  stationStore.loadVocabulary()
   if (projectId.value) {
     audioStore.loadAudio(projectId.value)
   }
 })
+
+// Stations belong to the current project, which the parent view resolves
+// asynchronously; wait for it instead of firing once on mount.
+watch(
+  () => projectStore.currentProject?.id,
+  (id) => {
+    if (!id) return
+    stationStore.loadStations()
+    stationStore.loadVocabulary()
+  },
+  { immediate: true }
+)
 
 watch(
   () => stationStore.stations,
@@ -799,6 +826,26 @@ function addTrigger(modifier: Modifier) {
   modifier.triggers.push({ type: 'has_war', value: true })
 }
 
+/**
+ * Switch a trigger's kind, resetting the fields it uses.
+ *
+ * Each kind reads a different field (`value` / `ideology` / `tag` / `name`), so
+ * a value left over from the previous kind would otherwise be submitted with
+ * the wrong type — a boolean `has_war` value becoming a country tag, say.
+ */
+/** Normalise a combobox's value, which may be null, into a plain string. */
+function asString(v: unknown): string {
+  return v == null ? '' : String(v)
+}
+
+function onTriggerTypeChange(trigger: Trigger, type: TriggerType) {
+  trigger.type = type
+  trigger.value = type === 'has_war' ? true : type === 'generic' ? 'yes' : ''
+  trigger.ideology = ''
+  trigger.tag = ''
+  trigger.name = ''
+}
+
 function removeTrigger(modifier: Modifier, index: number) {
   modifier.triggers.splice(index, 1)
 }
@@ -820,15 +867,21 @@ function cleanChance(chance: ChanceConfig): ChanceConfig {
       factor: m.factor,
       add: m.add,
       base: m.base,
+      // Coerce each kind to the type the backend expects: `has_war` is a
+      // boolean, while the string-valued kinds must never carry a boolean.
       triggers: m.triggers.map((t) => {
         const base: Trigger = { type: t.type }
-        if (t.type === 'has_war') base.value = t.value
-        if (t.type === 'tag') base.value = t.value
-        if (t.type === 'has_government') base.ideology = t.ideology
-        if (t.type === 'is_in_faction') base.tag = t.tag
-        if (t.type === 'generic') {
-          base.name = t.name
-          base.value = t.value as string
+        if (t.type === 'has_war') {
+          base.value = t.value === true || t.value === 'true'
+        } else if (t.type === 'tag') {
+          base.value = t.value == null ? '' : String(t.value)
+        } else if (t.type === 'has_government') {
+          base.ideology = t.ideology == null ? '' : String(t.ideology)
+        } else if (t.type === 'is_in_faction') {
+          base.tag = t.tag == null ? '' : String(t.tag)
+        } else if (t.type === 'generic') {
+          base.name = t.name == null ? '' : String(t.name)
+          base.value = t.value == null ? '' : String(t.value)
         }
         return base
       }),
