@@ -322,13 +322,25 @@
 
     <!--
       Chance Config Editor.
-      Wide by design: a trigger name may be a 30+ character mod or scripted
-      trigger, and the longest shipped name is 82 characters. A narrower dialog
-      truncates them. Vuetify still clamps this to the window, so a small window
-      falls back to the wrapped trigger-row layout rather than overflowing.
+
+      The width follows the triggers it holds (see `triggerRowWidths`): a radio
+      using short vanilla conditions stays a compact panel, while one using a
+      30-character mod trigger — or the 82-character longest shipped name —
+      grows just enough to show the text in full. Vuetify still clamps the
+      dialog to the window, where the rows wrap instead of overflowing.
     -->
-    <v-dialog v-model="showChanceDialog" max-width="1240" class="bureau-dialog">
-      <v-card class="dialog-card">
+    <v-dialog
+      v-model="showChanceDialog"
+      :max-width="triggerRowWidths.dialog"
+      class="bureau-dialog"
+    >
+      <v-card
+        class="dialog-card"
+        :style="{
+          '--trigger-name-w': triggerRowWidths.name + 'px',
+          '--trigger-value-w': triggerRowWidths.value + 'px',
+        }"
+      >
         <div class="dialog-accent" />
         <v-card-title class="dialog-title pa-6 pb-2">
           <div class="d-flex align-center gap-3">
@@ -679,14 +691,103 @@ const countryTagOptions = computed(() => stationStore.vocabulary?.country_tags ?
 /** Ideology ids from the loaded vocabulary, offered as suggestions. */
 const ideologyOptions = computed(() => stationStore.vocabulary?.ideologies ?? [])
 
-/**
- * Candidate values for a generic trigger.
+/*
+ * Trigger-row metrics, in CSS pixels, read off the rendered dialog:
  *
- * Scope keywords come from the trigger's documented targets (they are valid
- * values); `yes`/`no` are offered once the scripts show a boolean usage. The
- * combobox always stays free-form, and numeric triggers get no list at all —
- * only a hint — since their values are ids and ratios.
+ *  - ROW_FURNITURE is the type select, the delete button and the three gaps.
+ *  - DIALOG_CHROME is what sits between the dialog edge and a row (24px card
+ *    padding, the modifier card's 16px padding and its border).
+ *  - FIELD_INSET is what a field spends on its own padding and trailing icon,
+ *    so text of width N needs a field of N + FIELD_INSET.
  */
+const TRIGGER_TYPE_W = 163
+const TRIGGER_ROW_FURNITURE = TRIGGER_TYPE_W + 40 + 3 * 8
+const TRIGGER_DIALOG_CHROME = 88
+const TRIGGER_FIELD_INSET = 48
+const TRIGGER_NAME_MIN_W = 180
+const TRIGGER_VALUE_MIN_W = 150
+// Canvas text measurement differs slightly from how an <input> lays the same
+// string out, so the row gets a few pixels of headroom before it would wrap.
+const TRIGGER_DIALOG_SLACK = 16
+const TRIGGER_DIALOG_MIN_W = 640
+// High enough that even the widest real content (the 82-character name beside
+// a 25-character ideology) lays out on one line. Only content that wide ever
+// reaches the cap, and Vuetify clamps to the window regardless.
+const TRIGGER_DIALOG_MAX_W = 1300
+
+/** Reused canvas context for text measurement. */
+let measureCtx: CanvasRenderingContext2D | null | undefined
+
+/**
+ * Pixel width of `text` in the app's UI font. Fields are sized from their
+ * content, and an `<input>` cannot be asked how wide its value is once the
+ * value fits, so the width is measured instead.
+ */
+function measureText(text: string): number {
+  if (measureCtx === undefined) {
+    measureCtx = document.createElement('canvas').getContext('2d')
+    const host = document.querySelector('.v-application') ?? document.body
+    if (measureCtx && host) {
+      const style = getComputedStyle(host)
+      measureCtx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+    }
+  }
+  // Without canvas, fall back to a rough average advance width.
+  return measureCtx ? measureCtx.measureText(text).width : text.length * 8
+}
+
+/** The text a row displays, whichever field its trigger kind uses. */
+function triggerValueText(trigger: Trigger): string {
+  if (trigger.type === 'has_government') return asString(trigger.ideology)
+  if (trigger.type === 'is_in_faction') return asString(trigger.tag)
+  if (trigger.type === 'has_war') return t('station.no')
+  return asString(trigger.value)
+}
+
+/**
+ * Column widths and dialog width derived from the triggers being edited.
+ *
+ * Sizing from content keeps the dialog as narrow as the radio actually needs
+ * while still showing every name and value in full: a project with short
+ * vanilla conditions gets a compact panel, and one with long mod triggers grows
+ * only by the difference. Recomputed as triggers are added, picked or typed.
+ */
+const triggerRowWidths = computed(() => {
+  let nameText = 0
+  let valueText = 0
+  // Only `generic` triggers carry a name, so rows of the dedicated kinds (war,
+  // country tag, ideology, faction) need no name column at all.
+  let hasName = false
+
+  for (const modifier of chanceEditorData.value?.modifiers ?? []) {
+    for (const trigger of modifier.triggers) {
+      if (trigger.type === 'generic') {
+        hasName = true
+        nameText = Math.max(nameText, measureText(asString(trigger.name)))
+        // A boolean row renders a yes/no select, whose label is never the
+        // widest thing in the row.
+        if (valueKindFor(trigger.name) !== 'boolean') {
+          valueText = Math.max(valueText, measureText(asString(trigger.value)))
+        }
+      } else {
+        valueText = Math.max(valueText, measureText(triggerValueText(trigger)))
+      }
+    }
+  }
+
+  const name = hasName ? Math.max(TRIGGER_NAME_MIN_W, nameText + TRIGGER_FIELD_INSET) : 0
+  const value = Math.max(TRIGGER_VALUE_MIN_W, valueText + TRIGGER_FIELD_INSET)
+  const dialog = Math.min(
+    TRIGGER_DIALOG_MAX_W,
+    Math.max(
+      TRIGGER_DIALOG_MIN_W,
+      TRIGGER_ROW_FURNITURE + name + value + TRIGGER_DIALOG_CHROME + TRIGGER_DIALOG_SLACK,
+    ),
+  )
+
+  return { name, value, dialog }
+})
+
 /** Cached value kind for a trigger name; undefined until it has been looked up. */
 function valueKindFor(name?: string): ValueKind | null | undefined {
   return name ? stationStore.valueKinds[name] : undefined
@@ -1065,13 +1166,18 @@ async function handleDelete() {
  * `min-width: auto` (they refuse to shrink below content width, so a long mod
  * trigger name stole the space), and once shrink was allowed, a narrow window
  * let the value control shrink without limit — the dialog is only as wide as
- * `min(640px, 100% - 48px)`, so a small window left it a ~40px sliver.
+ * `min(100% - 48px, max-width)`, so a small window left it a ~40px sliver.
  *
- * So: every control may shrink (`min-width: 0`), but each declares a floor via
- * its min-width, which also sets the row's wrap threshold. Wide enough, the row
- * is a single line and the two flexible fields share the slack; too narrow, the
- * value control drops to its own line at full width instead of becoming
- * unusable. The type select stays a stable, aligned column sized to its label.
+ * Both column widths now come from the measured text they hold, applied as
+ * `--trigger-name-w` / `--trigger-value-w` on the dialog, so every row shares
+ * one set of columns (the type / name / value / delete columns stay aligned)
+ * while the panel itself is only as wide as its content needs.
+ *
+ * flex-basis carries that content width, which also makes it the wrap
+ * threshold: flex-wrap breaks on the hypothetical size, so when the dialog is
+ * too narrow to show a name beside its value the row wraps and the name takes a
+ * line of its own rather than truncating. The small min-widths are only the
+ * last resort before the dialog would overflow a very small window.
  */
 .trigger-row {
   display: flex;
@@ -1091,24 +1197,13 @@ async function handleDelete() {
 }
 
 .trigger-name {
-  /* Dominant flexible field: trigger names are long (a mod trigger runs 30+
-   * characters; the longest shipped name is 82), so it takes every spare pixel
-   * before the value control gets any.
-   *
-   * This floor also sets the wrap threshold. When the dialog is too narrow to
-   * show a realistic name beside the value control, the row wraps and the name
-   * takes a full line of its own rather than truncating. */
-  flex: 1 1 200px;
-  min-width: 300px;
+  flex: 1 1 var(--trigger-name-w, 220px);
+  min-width: 140px;
 }
 
 .trigger-value {
-  /* Trigger values are short (yes/no, a number, a 3-letter tag, an ideology),
-   * so this hugs its content instead of competing with the name for slack.
-   * Sized for the longest shipped value, the 25-character ideology
-   * `japan_militarism_ideology`, which needs ~211px of text at 16px Roboto. */
-  flex: 0 1 232px;
-  min-width: 200px;
+  flex: 1 1 var(--trigger-value-w, 170px);
+  min-width: 120px;
 }
 
 .empty-state {
