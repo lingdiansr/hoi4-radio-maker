@@ -320,8 +320,14 @@
       </v-card>
     </v-dialog>
 
-    <!-- Chance Config Editor -->
-    <v-dialog v-model="showChanceDialog" max-width="640" class="bureau-dialog">
+    <!--
+      Chance Config Editor.
+      Wide by design: a trigger name may be a 30+ character mod or scripted
+      trigger, and the longest shipped name is 82 characters. A narrower dialog
+      truncates them. Vuetify still clamps this to the window, so a small window
+      falls back to the wrapped trigger-row layout rather than overflowing.
+    -->
+    <v-dialog v-model="showChanceDialog" max-width="1240" class="bureau-dialog">
       <v-card class="dialog-card">
         <div class="dialog-accent" />
         <v-card-title class="dialog-title pa-6 pb-2">
@@ -1085,13 +1091,24 @@ async function handleDelete() {
 }
 
 .trigger-name {
-  flex: 1 1 140px;
-  min-width: 140px;
+  /* Dominant flexible field: trigger names are long (a mod trigger runs 30+
+   * characters; the longest shipped name is 82), so it takes every spare pixel
+   * before the value control gets any.
+   *
+   * This floor also sets the wrap threshold. When the dialog is too narrow to
+   * show a realistic name beside the value control, the row wraps and the name
+   * takes a full line of its own rather than truncating. */
+  flex: 1 1 200px;
+  min-width: 300px;
 }
 
 .trigger-value {
-  flex: 1 1 130px;
-  min-width: 130px;
+  /* Trigger values are short (yes/no, a number, a 3-letter tag, an ideology),
+   * so this hugs its content instead of competing with the name for slack.
+   * Sized for the longest shipped value, the 25-character ideology
+   * `japan_militarism_ideology`, which needs ~211px of text at 16px Roboto. */
+  flex: 0 1 232px;
+  min-width: 200px;
 }
 
 .empty-state {
