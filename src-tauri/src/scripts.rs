@@ -106,6 +106,23 @@ pub fn parse_trigger_documentation(text: &str) -> Vec<TriggerDef> {
     out
 }
 
+/// Drop a trailing `#` comment from a script line.
+///
+/// Script authors routinely annotate definitions (`totalitarian_socialist = { #社`),
+/// so comments must be removed before structural checks such as "ends with `{`"
+/// or brace counting. `#` inside a double-quoted string is kept.
+fn strip_comment(line: &str) -> &str {
+    let mut in_quotes = false;
+    for (i, c) in line.char_indices() {
+        match c {
+            '"' => in_quotes = !in_quotes,
+            '#' if !in_quotes => return &line[..i],
+            _ => {}
+        }
+    }
+    line
+}
+
 /// Split a comma-separated documentation list into trimmed, non-empty items.
 fn split_list(rest: &str) -> Vec<String> {
     rest.split(',')
@@ -120,7 +137,8 @@ fn split_list(rest: &str) -> Vec<String> {
 /// the trigger's body.
 pub fn parse_scripted_triggers(text: &str) -> Vec<String> {
     let mut out = Vec::new();
-    for line in text.lines() {
+    for raw in text.lines() {
+        let line = strip_comment(raw);
         // A definition starts at column 0; anything indented is content.
         if line.starts_with(char::is_whitespace) {
             continue;
@@ -166,7 +184,10 @@ pub fn parse_ideologies(text: &str) -> Vec<String> {
     // Depth relative to the `ideologies` block: 0 = outside, 1 = inside.
     let mut depth = 0i32;
 
-    for line in text.lines() {
+    for raw in text.lines() {
+        // Strip trailing comments first: they contain braces-free prose but
+        // would break the `ends_with('{')` check and the brace counting.
+        let line = strip_comment(raw);
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
@@ -452,6 +473,12 @@ pub fn lookup_value_kind(roots: &[PathBuf], name: &str) -> Option<ValueKind> {
             };
             for raw in data.split(|b| *b == b'\n') {
                 let line = trim_bytes(raw);
+                // Values are often followed by a comment (`= yes # note`), which
+                // would otherwise make the token look like free text.
+                let line = match line.iter().position(|b| *b == b'#') {
+                    Some(i) => trim_bytes(&line[..i]),
+                    None => line,
+                };
                 // Cheap pre-filter: script keys start with a lowercase letter.
                 let Some((first, _)) = line.split_first() else {
                     continue;
@@ -658,6 +685,56 @@ ideologies = {
         assert_eq!(script_roots(true, Some(&game), &[]), vec![game.clone()]);
         assert_eq!(script_roots(false, Some(&game), &mods), mods);
         assert_eq!(script_roots(true, Some(&game), &mods).len(), 3);
+    }
+
+    #[test]
+    fn strip_comment_removes_trailing_comments_but_keeps_quoted_hashes() {
+        assert_eq!(strip_comment("name = { # note"), "name = { ");
+        assert_eq!(strip_comment("name = {"), "name = {");
+        assert_eq!(strip_comment("f = \"a#b\" # tail"), "f = \"a#b\" ");
+        assert_eq!(strip_comment("# whole line"), "");
+    }
+
+    /// Regression: real mod files annotate definitions and use CRLF
+    /// (`\ttotalitarian_socialist = { #社\r`), which broke an earlier
+    /// `ends_with('{')` check and silently dropped that ideology.
+    #[test]
+    fn parses_ideologies_with_trailing_comments_and_crlf() {
+        let text = "ideologies = {\r\n\r\n\ttotalitarian_socialist = { #社\r\n\t\ttypes = {\r\n\t\t\tjucheism = {\r\n\t\t\t}\r\n\t\t}\r\n\t}\r\n\tcommunist = {\r\n\t}\r\n}\r\n";
+        assert_eq!(
+            parse_ideologies(text),
+            vec!["totalitarian_socialist".to_string(), "communist".to_string()]
+        );
+    }
+
+    /// Regression: a commented-out definition must not be collected.
+    #[test]
+    fn commented_out_definitions_are_ignored() {
+        let text = "ideologies = {\n\t#legacy = {\n\tcommunist = {\n\t}\n}\n";
+        assert_eq!(parse_ideologies(text), vec!["communist".to_string()]);
+
+        let scripted = "#disabled_trigger = {\nreal_trigger = { # note\n\talways = yes\n}\n";
+        assert_eq!(
+            parse_scripted_triggers(scripted),
+            vec!["real_trigger".to_string()]
+        );
+    }
+
+    /// Regression: a commented value (`= yes # note`) must still be classified.
+    #[test]
+    fn commented_values_still_contribute_to_value_kind() {
+        let tmp = tempfile::tempdir().unwrap();
+        let common = tmp.path().join("common");
+        std::fs::create_dir_all(&common).unwrap();
+        let mut body = String::new();
+        for i in 0..6 {
+            body.push_str(&format!("has_war = yes # note {i}\r\n"));
+        }
+        std::fs::write(common.join("usage.txt"), body).unwrap();
+        assert_eq!(
+            lookup_value_kind(&[tmp.path().to_path_buf()], "has_war"),
+            Some(ValueKind::Boolean)
+        );
     }
 
     #[test]
