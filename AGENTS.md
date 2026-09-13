@@ -81,8 +81,15 @@ only shows up as a red CI run.
 - Backend errors are localized in the frontend: `errorMessage(err)` (`src/utils/errors.ts`) maps the `Hoi4RadioError` wire tag to `errors.<type>` using the variant's own fields, falling back to the backend `message`. Use it instead of reading `err.message` directly.
 - Backend fields are snake_case in TS interfaces; local refs/actions camelCase; action verbs: `loadX / createX / updateX / deleteX / addX / removeX / reorderX`.
 - Import progress is pushed via Tauri events; `audio.ts` store has `ensureListening()`/`stopListening()` and upserts + removes `cancelled` entries.
-- Dialogs share classes `.dialog-card` / `.dialog-accent`. Theme is the single dark `radioBureau`; the theme setting in `SettingsView` is not wired to Vuetify.
+- Dialogs share classes `.dialog-card` / `.dialog-accent`. Vuetify ships two themes (`radioBureau` dark, `radioBureauLight`); `src/plugins/theme.ts` maps `settings.theme` (`dark` / `light` / `system`) onto the running instance, caches the resolved id for startup, and follows OS changes under `system`.
 - `main.ts` boot order: forward `console.*` to plugin-log → createApp + Pinia + router + vuetify → mount.
+
+### Trigger vocabulary (`scripts.rs`)
+- The project does **not** hardcode trigger lists and does **not** depend on hoi4skill. `build_vocabulary` parses the game the user already installed: `documentation/triggers_documentation.md` (only `## <name>` blocks carrying a `* Supported Scopes:` line), `common/scripted_triggers/*.txt`, `common/country_tags/*.txt`, `common/ideologies/*.txt` (first-level children of the `ideologies` block, excluding nested `types`).
+- Sources are per project: `load_vanilla_triggers` (default on) plus `trigger_mod_dirs` (Workshop mods, default off), resolved to roots by `script_roots` alone — do not reassemble vanilla-vs-mod roots at a call site.
+- **Strip trailing comments before any structural check** (`strip_comment`, quote-aware). Real mods write `totalitarian_socialist = { #社` and use CRLF; an `ends_with('{')` test silently dropped ideologies. There are regression tests for this.
+- Value kinds are **measured from usage**, never from the docs: `Supported Targets` does not predict them (`stockpile_ratio` is documented `none` yet takes a number). `ValueKindIndex` classifies every assignment in **one pass** and caches per source set on `AppState`; never rescan per name — a per-name scan cost 1.98 s on a 120 MB corpus and blocked the IPC thread.
+- `lookup` answers are advisory: an unknown or never-assigned trigger yields `None` and the UI falls back to a free-text control.
 
 ## Important Files
 

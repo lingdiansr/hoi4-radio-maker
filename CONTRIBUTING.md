@@ -31,21 +31,24 @@
 ```
 hoi4-radio-maker/
 ├── src/                    # Vue 3 前端源码
-│   ├── App.vue
-│   ├── main.ts
-│   └── assets/
+│   ├── views/              # 6 个页面（Welcome / Project / StationEditor / AudioArchive / ProjectSettings / Settings）
+│   ├── components/         # 可复用组件
+│   ├── stores/             # Pinia（project / audio / station / settings / toast）
+│   ├── api/                # invokeCommand 统一 IPC 入口
+│   └── i18n/               # vue-i18n（zh-CN 主 / en）
 ├── src-tauri/              # Tauri Rust 后端
-│   ├── src/                # Rust 源码
+│   ├── src/                # 16 个模块（commands / db / models / generator / validator / scripts …）
+│   ├── tests/              # 集成测试
 │   ├── Cargo.toml
 │   ├── tauri.conf.json
-│   ├── capabilities/
+│   ├── capabilities/       # 生产权限；capabilities-dev/ 为开发期 MCP 桥
 │   └── icons/
 ├── docs/                   # 设计文档与实现计划
-│   └── superpowers/
+│   └── superpowers/        # specs / plans / roadmap
 ├── package.json            # 前端依赖（Bun）
 ├── vite.config.ts          # Vite 配置
 ├── tsconfig.json           # TypeScript 配置
-├── README.md
+├── README.md / README.en.md
 ├── AGENTS.md               # 面向 Agent 的开发速查
 └── LICENSE                 # GPL-3.0
 ```
@@ -61,6 +64,9 @@ bun install
 
 # 3. 启动桌面开发模式
 bun run tauri dev
+
+# 或：启用 dev-mcp-bridge 调试插件（WebSocket 端口 9223，可被 MCP 客户端接管）
+bun run tauri:dev
 ```
 
 如需 Android 开发，先执行：
@@ -87,7 +93,9 @@ git checkout -b feature/your-feature-name
 
 ### 3. 运行检查
 
-前端类型检查：
+提交前请跑与 CI 相同的四道门禁：
+
+前端类型检查与构建：
 
 ```bash
 bun run build
@@ -96,8 +104,11 @@ bun run build
 Rust 检查：
 
 ```bash
-cd src-tauri && cargo check && cargo clippy
+cd src-tauri && cargo fmt --check                        # 格式门禁
+cd src-tauri && cargo clippy --all-targets -- -D warnings
 ```
+
+> `cargo clippy` 与 `cargo test` **都不检查格式**，所以 `cargo fmt --check` 必须单独跑 —— 漏掉它只会在 CI 变红。
 
 ### 4. 测试
 
@@ -107,6 +118,8 @@ bun run build
 
 # Rust 单元测试与集成测试
 cd src-tauri && cargo test
+cd src-tauri && cargo test --lib           # 仅单元测试
+cd src-tauri && cargo test --test generator_test   # 单个集成测试
 ```
 
 ### 5. 提交代码
@@ -179,10 +192,12 @@ cd src-tauri && cargo add <crate>
 
 较大改动前，请先阅读：
 
+- [实施路线图](docs/superpowers/roadmap.md)（§9 为当前状态与后续任务，§9.8 记录 Trigger 词表来源）
 - `docs/superpowers/specs/2026-06-12-hoi4radio-design.md`
 - `docs/superpowers/plans/2026-06-12-hoi4radio-implementation-plan.md`
+- [AGENTS.md](AGENTS.md)（面向 AI Agent 的仓库速查：架构、约定、测试与 CI）
 
-如果你要新增功能或修改架构，建议先在 `docs/superpowers/` 中更新对应文档。
+如果你要新增功能或修改架构，建议先在 `docs/superpowers/` 中更新对应文档，并在 `roadmap.md` §9 补记状态。
 
 ## 提交 Pull Request
 

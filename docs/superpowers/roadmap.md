@@ -161,7 +161,8 @@ Task 6.5 → Task 9 → Task 9.5 → Task 11
 | P2 后端领域 | ✅ 基本完成 | 音频、电台、生成器、验证器已落地 |
 | P3 命令层 | ✅ 完成 | Tauri Command 已注册 |
 | P4 前端界面 | ✅ 基本完成 | 项目管理、音频库、电台编辑、设置均已可用 |
-| P5 集成与质量 | ✅ 完成 | 高优先级兼容性（9.2）、中优先级体验（9.3）、CI 质量门禁（Task 11）均已完成 |
+| P5 集成与质量 | ✅ 完成 | 高优先级兼容性（9.2）、中优先级体验（9.3）、CI 质量门禁（Task 11）、Trigger 词表来源（9.8）均已完成 |
+| P6 Trigger 词表 | ✅ 完成 | 从游戏本体 + 选定 mod 构建 trigger/tag/ideology 词表，用于生成、校验与编辑态提示（9.8） |
 
 ### 9.2 高优先级（影响游戏内可用性）— ✅ 已完成
 
@@ -196,14 +197,14 @@ Task 6.5 → Task 9 → Task 9.5 → Task 11
 
 ### 9.5 推荐下一步
 
-9.3、9.4 的「子目录/多 `.asset` 结构」「多语言界面」「与 hoi4skill 共享索引验证 trigger」（改用自建词表）均已完成并合并至 main（`32e6a24` / `da95f70` / `5c3fdd6` / `499d7ef` / `cfd0344`…`f6301cf`）；「Steam Workshop 一键上传」已确认不做。
+9.3、9.4 与 9.8 的「子目录/多 `.asset` 结构」「多语言界面」「Trigger 词表来源」均已完成并合并至 main（`32e6a24` / `da95f70` / `5c3fdd6` / `499d7ef` / `cfd0344`…`f6301cf`）；「Steam Workshop 一键上传」已确认不做。
 
 **9.4 现仅剩一项**：「真实音频波形可视化」（当前为占位动画，见 `AudioArchiveView.vue` 的 `.wave-bar`）。属 Nice-to-have。
 
-**已合并但未记录的额外工作**（2026-09-11）：trigger 词表来源功能顺带产出的三类改动，均已在 main：
+**同期完成但原未立项的工作**（2026-09-11），详见 9.8：
 - **按 trigger 类型渲染取值控件**：布尔→是/否下拉、数值→数字输入、文本→可搜索下拉（`f9832b0`）
 - **播放条件弹窗宽度随内容自适应**：短内容回到原始 640px，最长 trigger 名（82 字符）时扩展到 1288px（`428fde5`）
-- **取值类型全量索引**：选 trigger 不再卡顿，单次查询 1.98 s → 418 ns（`f6301cf`）
+- **取值类型全量索引**：消除选 trigger 的卡顿，单次查询 1.98 s → 418 ns（`f6301cf`）
 
 ### 9.6 CI/CD — ✅ 已完成
 
@@ -214,7 +215,7 @@ Task 6.5 → Task 9 → Task 9.5 → Task 11
 
 工作流位于 `.github/workflows/ci.yml` 与 `.github/workflows/release.yml`。Rust 通过 `rust-toolchain.toml` 固定 stable + rustfmt/clippy 组件；前端用 `bun install --frozen-lockfile`；Rust 测试在 CI 安装 `ffmpeg` 后完整运行转码/验证器集成测试。
 
-### 9.7 「共享 Clausewitz 索引验证 trigger」— ✅ 已以自建词表取代
+### 9.7 「共享 Clausewitz 索引验证 trigger」评估（2026-08-17，已被 9.8 取代）
 
 **原始意图**（设计文档 §3.3 / §12）：电台 `.txt` 里的 `chance = { modifier = { … <trigger> } }` 目前只支持固定的 4 种条件（`has_war` / `tag` / `has_government` / `is_in_faction_with`，见 `models.rs` 的 `Trigger` 枚举），生成时直接拼字符串（`generator.rs` 的 `format_trigger`）。验证器只检查 `.asset`/`.txt` 一致性、OGG 可解码性、本地化键与 ID 字符集，**不校验脚本语义**。原意是复用 hoi4skill 的 Clausewitz 索引校验这些 trigger 关键字/取值（如国家 tag、意识形态）是否真实存在。
 
@@ -235,20 +236,39 @@ Task 6.5 → Task 9 → Task 9.5 → Task 11
 
 ---
 
-#### 9.7 后续（2026-09-11）：以自建词表取代，未依赖 hoi4skill
+### 9.8 Trigger 词表来源 — ✅ 已完成（2026-09-11）
 
-上面三条路径**都没有走**。实际实现选择了第四条：**本项目自己从游戏与选定 mod 构建词表**，完全不引入 hoi4skill（`scripts.rs`，`cfd0344` 起共 12 个提交）。
+> 本节取代 9.7 的三条候选路径：实际实现是**第四条** —— 本项目自己从游戏与选定 mod 构建词表，**完全不引入 hoi4skill**。
+
+**做什么**：让电台的 `chance = { modifier = { <trigger> } }` 不再局限于写死的几种条件，而是取值于**真实存在的** trigger 词表；词表同时用于生成、校验与编辑态提示。
+
+**词表来源**：`scripts.rs`（`cfd0344` 起共 12 个提交，`f6301cf` 收尾）
+
+| 来源 | 解析内容 |
+|---|---|
+| `documentation/triggers_documentation.md` | 596 条 trigger 定义（`## <name>` + `Supported Scopes/Targets`） |
+| `common/scripted_triggers/*.txt` | mod / 原版定义的自定义 trigger 名 |
+| `common/country_tags/*.txt` | 3 位大写国家 tag |
+| `common/ideologies/*.txt` | 意识形态 id（按缩进层级取一级子项，排除嵌套 `types`） |
+
+词表在项目设置内配置：**加载原版 trigger（默认开）** + **任意多个创意工坊 mod（默认不加载）**。实测原版 1519 triggers / 364 tags / 4 ideologies；叠加 mod 后约 1944 triggers / 683 tags / 15 ideologies。
+
+**与 9.7 原设想的对照**
 
 | 原设想 | 实际实现 |
 |---|---|
-| 复用 hoi4skill 的共享索引 | **自建**。`scripts.rs` 从 `documentation/triggers_documentation.md`（596 条定义）+ `common/scripted_triggers/*.txt` 解析 trigger 名 |
-| 校验 `tag` / `has_government` 取值（路径 2） | 已做，并且**同样自建**：`common/country_tags/*.txt`、`common/ideologies/*.txt` |
-| trigger 是封闭 4 种枚举 | 扩展为 5 种：新增 `Trigger::Generic { name, value }`，取值来自词表，生成时按需加引号 |
-| 验证器不校验 trigger 语义 | `validator.rs` 现按词表校验 `.txt` 赋值：未知 trigger / 未知 tag / 未知 ideology 均报 warning（`STRUCTURAL_KEYS` 排除 `music`/`song`/`factor`/`chance`/`modifier`/`add`/`base`；空词表跳过） |
-| 不做（收益有限） | 额外做了**取值类型推断**：`ValueKindIndex` 一次遍历脚本语料，按实际用法判定 boolean/number/text，用于编辑态 UI 控件选择 |
+| 复用 hoi4skill 的共享索引 | **自建**，不引入跨仓库耦合 |
+| 仅窄化校验 `tag` / `has_government` 取值（路径 2） | 已做，**并且同样自建**：`country_tags` / `ideologies` |
+| trigger 是封闭 4 种枚举 | 扩展为 5 种：新增 `Trigger::Generic { name, value }`，生成时仅当值含空格/引号才加引号 |
+| 验证器不校验 trigger 语义 | `validator.rs` 按词表校验 `.txt` 赋值：未知 trigger / 未知 tag / 未知 ideology 均报 warning（`STRUCTURAL_KEYS` 排除 `music`/`song`/`factor`/`chance`/`modifier`/`add`/`base`；空词表跳过） |
+| （未设想） | 额外的**取值类型推断**：按脚本实际用法判定 boolean / number / text |
 
-**词表来源**：项目设置内选择「加载原版 trigger」（默认开）与任意多个创意工坊 mod（默认不加载）。实测原版 1519 triggers / 364 tags / 4 ideologies；叠加 mod 后增至约 1944 triggers / 683 tags / 15 ideologies。
+**取值类型为何靠实测而非文档**：`Supported Targets` 不能预测类型 —— `stockpile_ratio` 文档标为 `none` 却取数字；`command_power` 混用以字符串为主（162:24）。用法是唯一可靠信号。
 
-**性能**：按取值类型查询最初为「每个名字重扫全语料」，在本机 10k 文件 / 120 MB 上单次 1.98 s 且阻塞 IPC 线程。改为 `ValueKindIndex` 一次遍历建全量索引并按来源集缓存后，同一查询 418 ns（选 trigger 时最大帧间隙 19 ms）。见 `f6301cf`。
+**编辑态表现**：取值控件按类型渲染 —— 布尔→是/否下拉，数值→数字输入框，文本/未知→可搜索下拉（scope 关键字候选）。
 
-9.4 中「与 hoi4skill 共享 Clausewitz 索引验证 trigger」一项据此标记为**已完成（改用自建词表）**。
+**性能**：取值类型查询最初为「每个名字重扫全语料」，本机 10k 文件 / 120 MB 下单次 **1.98 s** 且阻塞 IPC 线程（同步命令跑在主线程）。改为 `ValueKindIndex` **一次遍历建全量索引**并按来源集缓存后，同一查询 **418 ns**；在运行的应用中选 trigger 的最大帧间隙 **19 ms**。见 `f6301cf`。
+
+**关键回归测试**：CRLF + 行尾注释的解析（真实 mod 曾因 `ends_with('{')` 失效而静默丢失意识形态）、注释掉的定义/取值、索引缓存按来源集失效（去掉键检查即失败）。
+
+**9.7 的落点**：9.4 中「与 hoi4skill 共享 Clausewitz 索引验证 trigger」据此标记为**已完成（改用自建词表）**。

@@ -16,9 +16,10 @@ Create and manage HOI4 radio mods from scratch: import audio and transcode it to
 - **Global audio library**: batch import mp3 / flac / wav / ogg / m4a / aac / wma; BLAKE3 content-hash dedup — re-imports just create references, no re-transcoding
 - **Automatic transcoding**: converts to HOI4-compatible Ogg Vorbis on import (44.1 kHz, forced stereo, libvorbis quality 4); concurrent imports with per-file progress and cancellation
 - **Metadata**: reads embedded title/artist tags (ID3 etc.); single and batch editing (title / artist / volume / tags / notes)
-- **Station editor**: multiple stations per project; per-song playback weight (`factor`) and triggers (`tag`, `has_war`, `has_government`, `is_in_faction`); in-station ordering
+- **Station editor**: multiple stations per project; per-song playback weight (`factor`) and triggers (`tag`, `has_war`, `has_government`, `is_in_faction`, plus any custom trigger in the vocabulary); in-station ordering
+- **Trigger vocabulary**: built from the game itself (`documentation/triggers_documentation.md` + `common/scripted_triggers`) and any number of Workshop mods — trigger names, country tags, and ideologies; value controls render by measured kind (boolean → yes/no, number → number field, text → searchable dropdown)
 - **One-click generation**: emits a complete mod directory — `descriptor.mod`, launcher `.mod`, `music/<station>.asset` + `.txt`, and Simplified Chinese localisation (UTF-8 BOM)
-- **Output validation**: OGG decodability, `.asset`/`.txt` ID consistency, localisation key coverage, ID naming rules (configurable ffprobe path)
+- **Output validation**: OGG decodability, `.asset`/`.txt` ID consistency, localisation key coverage, ID naming rules (configurable ffprobe path), plus unknown trigger / tag / ideology checks against the vocabulary
 - **Diagnostics**: unified frontend/backend logging (stdout + app data dir + dev webview); open the log folder from Settings
 
 ## Tech Stack
@@ -46,15 +47,19 @@ For system-level dependencies (WebKitGTK etc.), see the [Tauri prerequisites](ht
 ```bash
 bun install          # install frontend deps (Bun; bun.lock is the lockfile)
 bun run tauri dev    # desktop dev: Vite (port 1420) + Rust backend
+bun run tauri:dev    # same, with the dev-mcp-bridge debugging plugin (WebSocket on 9223)
 ```
 
 ## Development
 
+Run the same four gates CI runs before pushing:
+
 ```bash
-bun run build        # type gate: vue-tsc --noEmit && vite build
+bun run build                       # type gate: vue-tsc --noEmit && vite build
+cd src-tauri && cargo fmt --check   # format gate (clippy/test do NOT check formatting)
+cd src-tauri && cargo clippy --all-targets -- -D warnings
 cd src-tauri && cargo test          # all Rust tests
 cd src-tauri && cargo test --lib    # unit tests only
-cd src-tauri && cargo clippy -- -D warnings
 RUST_LOG=debug bun run tauri dev    # debug-level backend logs
 ```
 
@@ -75,7 +80,7 @@ git tag v0.1.0 && git push origin v0.1.0
 
 ```
 src/           Vue frontend (views / components / stores / api)
-src-tauri/     Rust backend (commands / db / generator / validator / audio …)
+src-tauri/     Rust backend (commands / db / generator / validator / scripts / audio …)
   └─ tests/    integration tests
 docs/superpowers/  design specs, implementation plans, roadmap
 references/radio-mod-template/    sample HOI4 radio mod for output reference
@@ -84,9 +89,10 @@ references/radio-mod-template/    sample HOI4 radio mod for output reference
 ## Docs
 
 - [Design specification](docs/superpowers/specs/2026-06-12-hoi4radio-design.md)
-- [Implementation roadmap](docs/superpowers/roadmap.md)
+- [Implementation roadmap](docs/superpowers/roadmap.md) (§9.8 documents the trigger vocabulary)
 - [Implementation plan](docs/superpowers/plans/2026-06-12-hoi4radio-implementation-plan.md)
 - [Contributing](CONTRIBUTING.md)
+- [AGENTS.md](AGENTS.md) (repository cheat sheet for AI agents)
 
 ## License
 
